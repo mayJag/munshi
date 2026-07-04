@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../app/theme.dart';
 import '../../data/app_database.dart';
@@ -73,6 +74,76 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     ));
   }
 
+  Future<void> _editMonthlyBudget(int? current) async {
+    final ctrl = TextEditingController(
+      text: current != null ? (current / 100).toStringAsFixed(0) : '',
+    );
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await showDialog<_MonthlyBudgetAction>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Monthly Budget'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Set your total spending limit for this month.',
+              style: TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
+              decoration: const InputDecoration(
+                labelText: 'Total limit',
+                prefixText: '₹ ',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          if (current != null)
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(context, _MonthlyBudgetAction.clear),
+              child: const Text('Remove',
+                  style: TextStyle(color: MunshiTheme.negative)),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, _MonthlyBudgetAction.cancel),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, _MonthlyBudgetAction.save),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result == _MonthlyBudgetAction.clear) {
+      await db.clearMonthlyBudget(_key);
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Monthly budget removed'),
+        behavior: SnackBarBehavior.floating,
+      ));
+    } else if (result == _MonthlyBudgetAction.save) {
+      final minor = Money.toMinor(ctrl.text);
+      if (minor > 0) {
+        await db.setMonthlyBudget(_key, minor);
+        messenger.showSnackBar(SnackBar(
+          content: Text('Monthly budget set to ${Money.format(minor)}'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+    ctrl.dispose();
+  }
+
   Future<void> _clearMonth() async {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await showDialog<bool>(
@@ -92,6 +163,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     );
     if (ok != true) return;
     await db.clearMonthBudgets(_key);
+    await db.clearMonthlyBudget(_key);
     messenger.showSnackBar(const SnackBar(
       content: Text('Budgets cleared'),
       behavior: SnackBarBehavior.floating,
@@ -144,40 +216,66 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             onNext: () => _shift(1),
           ),
           Expanded(
-            child: StreamBuilder<List<BudgetLine>>(
-              stream: db.watchBudgetLines(_key),
-              builder: (context, snap) {
-                final lines = snap.data ?? const [];
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final withBudget =
-                    lines.where((l) => l.hasBudget).toList();
-                final without =
-                    lines.where((l) => !l.hasBudget).toList();
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-                  children: [
-                    _SummaryCard(lines: withBudget),
-                    const SizedBox(height: 12),
-                    _AllowancePanel(
-                        monthKey: _key,
-                        isCurrentMonth: _key == Money.monthKey(DateTime.now())),
-                    const SizedBox(height: 16),
-                    if (withBudget.isEmpty)
-                      _EmptyHint(month: Money.monthLabel(_month)),
-                    for (final l in withBudget)
-                      _BudgetCard(line: l, onTap: () => _editLine(l)),
-                    if (without.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text('Not budgeted',
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(color: Colors.white38)),
-                      const SizedBox(height: 8),
-                      for (final l in without)
-                        _UnbudgetedTile(line: l, onTap: () => _editLine(l)),
-                    ],
-                  ],
+            child: StreamBuilder<MonthlyBudget?>(
+              stream: db.watchMonthlyBudget(_key),
+              builder: (context, monthlySnap) {
+                final monthlyBudget = monthlySnap.data;
+                return StreamBuilder<List<BudgetLine>>(
+                  stream: db.watchBudgetLines(_key),
+                  builder: (context, snap) {
+                    final lines = snap.data ?? const [];
+                    if (snap.connectionState == ConnectionState.waiting &&
+                        monthlySnap.connectionState ==
+                            ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final withBudget =
+                        lines.where((l) => l.hasBudget).toList();
+                    final without =
+                        lines.where((l) => !l.hasBudget).toList();
+                    final totalSpent =
+                        lines.fold<int>(0, (s, l) => s + l.spentMinor);
+                    final categoryAllocated = withBudget.fold<int>(
+                        0, (s, l) => s + l.availableMinor);
+
+                    return ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+                      children: [
+                        _MonthlyTotalCard(
+                          totalMinor: monthlyBudget?.totalMinor,
+                          spentMinor: totalSpent,
+                          categoryAllocatedMinor: categoryAllocated,
+                          onEdit: () => _editMonthlyBudget(
+                              monthlyBudget?.totalMinor),
+                        ),
+                        const SizedBox(height: 12),
+                        _AllowancePanel(
+                            monthKey: _key,
+                            isCurrentMonth:
+                                _key == Money.monthKey(DateTime.now())),
+                        const SizedBox(height: 16),
+                        if (withBudget.isNotEmpty) ...[
+                          Text('Category breakdown',
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(color: Colors.white38)),
+                          const SizedBox(height: 8),
+                        ] else
+                          _EmptyHint(month: Money.monthLabel(_month)),
+                        for (final l in withBudget)
+                          _BudgetCard(line: l, onTap: () => _editLine(l)),
+                        if (without.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Text('Not budgeted',
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(color: Colors.white38)),
+                          const SizedBox(height: 8),
+                          for (final l in without)
+                            _UnbudgetedTile(
+                                line: l, onTap: () => _editLine(l)),
+                        ],
+                      ],
+                    );
+                  },
                 );
               },
             ),
@@ -333,52 +431,150 @@ class _AllowancePanel extends StatelessWidget {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.lines});
-  final List<BudgetLine> lines;
+enum _MonthlyBudgetAction { save, clear, cancel }
+
+/// Top card showing the overall monthly budget envelope.
+/// When [totalMinor] is null the user hasn't set one yet — card prompts them.
+class _MonthlyTotalCard extends StatelessWidget {
+  const _MonthlyTotalCard({
+    required this.totalMinor,
+    required this.spentMinor,
+    required this.categoryAllocatedMinor,
+    required this.onEdit,
+  });
+  final int? totalMinor;
+  final int spentMinor;
+  final int categoryAllocatedMinor;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final allocated =
-        lines.fold<int>(0, (s, l) => s + l.availableMinor);
-    final spent = lines.fold<int>(0, (s, l) => s + l.spentMinor);
-    final progress =
-        allocated <= 0 ? 0.0 : (spent / allocated).clamp(0.0, 1.0);
-    final over = spent > allocated && allocated > 0;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [MunshiTheme.accentDeep, Color(0xFF0B3B36)],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Spent of budget',
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: Colors.white70)),
-          const SizedBox(height: 6),
-          Text('${Money.format(spent)}  /  ${Money.format(allocated)}',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                  color: Colors.white, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 10,
-              backgroundColor: Colors.white24,
-              color: over ? MunshiTheme.negative : Colors.white,
+    if (totalMinor == null) {
+      // No monthly budget set — show a tappable prompt.
+      return GestureDetector(
+        onTap: onEdit,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: MunshiTheme.accent.withValues(alpha: 0.35),
+              width: 1.5,
             ),
+            color: MunshiTheme.accent.withValues(alpha: 0.06),
           ),
-        ],
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: MunshiTheme.accent.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.account_balance_wallet_outlined,
+                    color: MunshiTheme.accent, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Set a total monthly budget',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                            color: MunshiTheme.accent,
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(
+                      categoryAllocatedMinor > 0
+                          ? 'You have ${Money.format(categoryAllocatedMinor)} in category limits — '
+                              'add an overall cap too'
+                          : 'Tap to set how much you want to spend this month',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: Colors.white38),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.add, color: MunshiTheme.accent),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final total = totalMinor!;
+    final remaining = total - spentMinor;
+    final over = spentMinor > total;
+    final progress = total <= 0 ? 0.0 : (spentMinor / total).clamp(0.0, 1.0);
+    final unallocated = total - categoryAllocatedMinor;
+
+    return GestureDetector(
+      onTap: onEdit,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [MunshiTheme.accentDeep, Color(0xFF0B3B36)],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Monthly budget',
+                    style: theme.textTheme.labelMedium
+                        ?.copyWith(color: Colors.white70)),
+                Icon(Icons.edit_outlined, size: 15, color: Colors.white38),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${Money.format(spentMinor)}  /  ${Money.format(total)}',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                  color: Colors.white, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 10,
+                backgroundColor: Colors.white24,
+                color: over ? MunshiTheme.negative : Colors.white,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  over
+                      ? 'Over by ${Money.format(-remaining)}'
+                      : '${Money.format(remaining)} remaining',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: over ? MunshiTheme.negative : Colors.white70,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (unallocated > 0)
+                  Text(
+                    '${Money.format(unallocated)} unallocated',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: Colors.white38),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

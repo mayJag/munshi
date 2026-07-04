@@ -64,6 +64,17 @@ class Transactions extends Table {
       dateTime().clientDefault(DateTime.now)();
 }
 
+/// A single total-spend cap for an entire month, independent of category limits.
+@DataClassName('MonthlyBudget')
+class MonthlyBudgets extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get monthKey => text().withLength(min: 7, max: 7)();
+  IntColumn get totalMinor => integer()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [{monthKey}];
+}
+
 @DataClassName('Budget')
 class Budgets extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -169,6 +180,7 @@ class SpendSummary {
   Accounts,
   Categories,
   Transactions,
+  MonthlyBudgets,
   Budgets,
   RecurringTemplates,
   Reminders,
@@ -178,7 +190,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -192,6 +204,9 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(reminders);
             await m.addColumn(
                 transactions, transactions.recurringTemplateId);
+          }
+          if (from < 3) {
+            await m.createTable(monthlyBudgets);
           }
         },
       );
@@ -369,6 +384,28 @@ class AppDatabase extends _$AppDatabase {
     return q.watchSingle().map((r) => r.read(amount) ?? 0);
   }
 
+  // ---- Monthly total budget ---------------------------------------------
+
+  Stream<MonthlyBudget?> watchMonthlyBudget(String monthKey) {
+    return (select(monthlyBudgets)..where((b) => b.monthKey.equals(monthKey)))
+        .watchSingleOrNull();
+  }
+
+  Future<void> setMonthlyBudget(String monthKey, int totalMinor) {
+    return into(monthlyBudgets).insert(
+      MonthlyBudgetsCompanion.insert(monthKey: monthKey, totalMinor: totalMinor),
+      onConflict: DoUpdate(
+        (_) => MonthlyBudgetsCompanion(totalMinor: Value(totalMinor)),
+        target: [monthlyBudgets.monthKey],
+      ),
+    );
+  }
+
+  Future<void> clearMonthlyBudget(String monthKey) {
+    return (delete(monthlyBudgets)..where((b) => b.monthKey.equals(monthKey)))
+        .go();
+  }
+
   // ---- Budgets ----------------------------------------------------------
 
   static DateTime monthStart(String key) {
@@ -482,6 +519,8 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Reactive month snapshot: total budget set, spend this month, spend today.
+  /// If a monthly total budget is set it takes precedence over the sum of
+  /// category budgets — so the daily-allowance maths uses the right ceiling.
   Stream<SpendSummary> watchSpendSummary(String monthKey) {
     final start = monthStart(monthKey);
     final end = _monthEnd(monthKey);
@@ -489,28 +528,34 @@ class AppDatabase extends _$AppDatabase {
     final todayStart = DateTime(now.year, now.month, now.day);
     final todayEnd = todayStart.add(const Duration(days: 1));
 
-    return select(budgets).watch().asyncExpand((budgetRows) {
-      return select(transactions).watch().map((txRows) {
-        final allocated = budgetRows
-            .where((b) => b.monthKey == monthKey)
-            .fold<int>(0, (s, b) => s + b.allocatedMinor);
-        var spentMonth = 0;
-        var spentToday = 0;
-        for (final t in txRows) {
-          if (t.type != TxType.expense) continue;
-          if (!t.occurredAt.isBefore(start) && t.occurredAt.isBefore(end)) {
-            spentMonth += t.amountMinor;
+    return select(monthlyBudgets).watch().asyncExpand((monthlyRows) {
+      return select(budgets).watch().asyncExpand((budgetRows) {
+        return select(transactions).watch().map((txRows) {
+          final monthlyEntry =
+              monthlyRows.where((b) => b.monthKey == monthKey).firstOrNull;
+          final categoryTotal = budgetRows
+              .where((b) => b.monthKey == monthKey)
+              .fold<int>(0, (s, b) => s + b.allocatedMinor);
+          final allocated = monthlyEntry?.totalMinor ?? categoryTotal;
+
+          var spentMonth = 0;
+          var spentToday = 0;
+          for (final t in txRows) {
+            if (t.type != TxType.expense) continue;
+            if (!t.occurredAt.isBefore(start) && t.occurredAt.isBefore(end)) {
+              spentMonth += t.amountMinor;
+            }
+            if (!t.occurredAt.isBefore(todayStart) &&
+                t.occurredAt.isBefore(todayEnd)) {
+              spentToday += t.amountMinor;
+            }
           }
-          if (!t.occurredAt.isBefore(todayStart) &&
-              t.occurredAt.isBefore(todayEnd)) {
-            spentToday += t.amountMinor;
-          }
-        }
-        return SpendSummary(
-          budgetAllocatedMinor: allocated,
-          spentMonthMinor: spentMonth,
-          spentTodayMinor: spentToday,
-        );
+          return SpendSummary(
+            budgetAllocatedMinor: allocated,
+            spentMonthMinor: spentMonth,
+            spentTodayMinor: spentToday,
+          );
+        });
       });
     });
   }
