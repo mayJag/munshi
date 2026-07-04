@@ -59,13 +59,18 @@ class _TransactionEditorState extends State<TransactionEditor> {
   }
 
   Future<void> _load() async {
-    final accounts = await db.activeAccounts();
+    // All accounts (incl. archived) so transactions on archived accounts stay
+    // editable — a value missing from the dropdown's items would assert.
+    final accounts = await db.activeAccountsAll();
     final categories = await db.allCategories();
     if (!mounted) return;
+    final active = accounts.where((a) => !a.isArchived).toList();
     setState(() {
       _accounts = accounts;
       _categories = categories;
-      _accountId ??= accounts.isNotEmpty ? accounts.first.id : null;
+      _accountId ??= active.isNotEmpty
+          ? active.first.id
+          : (accounts.isNotEmpty ? accounts.first.id : null);
       _loading = false;
     });
   }

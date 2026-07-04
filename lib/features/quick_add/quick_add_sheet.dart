@@ -74,6 +74,10 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     if (minor <= 0 || _account == null || _saving) return;
     setState(() => _saving = true);
     HapticFeedback.mediumImpact();
+    // Capture before any await/pop — looking these up afterwards can hit a
+    // deactivated context.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     await db.insertTx(TransactionsCompanion.insert(
       occurredAt: DateTime.now(),
       amountMinor: minor,
@@ -82,9 +86,8 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       categoryId: Value(category.id),
     ));
     await AlertsService.instance.checkAfterExpense(category.id);
-    if (!mounted) return;
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
+    navigator.pop();
+    messenger.showSnackBar(
       SnackBar(
         content: Text('Saved ${Money.format(minor)} · ${category.name}'),
         behavior: SnackBarBehavior.floating,

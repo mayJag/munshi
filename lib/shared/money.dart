@@ -16,9 +16,11 @@ class Money {
   /// Paise-precision display, e.g. 123450 -> "₹1,234.50".
   static String formatPaise(int minor) => _fmtPaise.format(minor / 100);
 
-  /// Parse a user-typed rupee string ("1234.5") to minor units (123450).
+  /// Parse a user-typed rupee string to minor units (123450). Tolerates
+  /// currency symbols, commas, and whitespace: "₹1,234.5" -> 123450.
   static int toMinor(String rupees) {
-    final v = double.tryParse(rupees.trim()) ?? 0;
+    final cleaned = rupees.replaceAll(RegExp(r'[^\d.\-]'), '');
+    final v = double.tryParse(cleaned) ?? 0;
     return (v * 100).round();
   }
 

@@ -166,38 +166,55 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final date = DateTime(_month.year, _month.month, day);
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(Money.dateLabel(date),
-                  style: Theme.of(context).textTheme.titleMedium),
-              Text('${Money.format(total)} spent',
-                  style: const TextStyle(color: Colors.white54)),
-              const SizedBox(height: 12),
-              if (items.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Text('Nothing spent this day',
-                      style: TextStyle(color: Colors.white38)),
-                )
-              else
-                for (final t in items)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                        iconFor(_catById[t.categoryId]?.iconKey ?? 'other'),
-                        color:
-                            Color(_catById[t.categoryId]?.colorValue ?? 0xFF64748B)),
-                    title: Text(_catById[t.categoryId]?.name ?? 'Uncategorized'),
-                    subtitle: t.note == null ? null : Text(t.note!),
-                    trailing: Text(Money.format(t.amountMinor),
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.7),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(Money.dateLabel(date),
+                    style: Theme.of(context).textTheme.titleMedium),
+                Text('${Money.format(total)} spent',
+                    style: const TextStyle(color: Colors.white54)),
+                const SizedBox(height: 12),
+                if (items.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Text('Nothing spent this day',
+                        style: TextStyle(color: Colors.white38)),
+                  )
+                else
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final t in items)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                                iconFor(_catById[t.categoryId]?.iconKey ??
+                                    'other'),
+                                color: Color(_catById[t.categoryId]
+                                        ?.colorValue ??
+                                    0xFF64748B)),
+                            title: Text(_catById[t.categoryId]?.name ??
+                                'Uncategorized'),
+                            subtitle:
+                                t.note == null ? null : Text(t.note!),
+                            trailing: Text(Money.format(t.amountMinor),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                      ],
+                    ),
                   ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

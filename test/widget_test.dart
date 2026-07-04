@@ -12,6 +12,13 @@ void main() {
       expect(Money.toMinor('99.99'), 9999);
     });
 
+    test('tolerates currency symbols, commas, whitespace', () {
+      expect(Money.toMinor('₹1,234.50'), 123450);
+      expect(Money.toMinor(' 1,00,000 '), 10000000);
+      expect(Money.toMinor('Rs 500'), 50000);
+      expect(Money.toMinor('garbage'), 0);
+    });
+
     test('formats minor units as whole rupees (en_IN grouping)', () {
       expect(Money.format(123400), '₹1,234');
       expect(Money.format(0), '₹0');

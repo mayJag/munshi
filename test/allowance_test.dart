@@ -63,6 +63,18 @@ void main() {
     });
   });
 
+  test('REGRESSION: fully over budget must not crash (clamp bug)', () {
+    // ₹300 budget but ₹400 already spent before today -> used to throw
+    // ArgumentError via clamp(0, negative). Must return 0 allowance.
+    final a = Allowance.compute(
+      summary: summary(30000, 40000, 0),
+      mode: LeftoverMode.spread,
+      now: now,
+    );
+    expect(a.todayAllowanceMinor, 0);
+    expect(a.canSpendTodayMinor, 0);
+  });
+
   test('no budget -> no allowance', () {
     final a = Allowance.compute(
       summary: summary(0, 0, 0),

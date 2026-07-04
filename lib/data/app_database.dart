@@ -564,20 +564,26 @@ class AppDatabase extends _$AppDatabase {
       update(categories).replace(c);
 
   /// Delete a category; its transactions are kept but become uncategorized.
+  /// Recurring templates pointing at it also become uncategorized.
   Future<void> deleteCategory(int id) async {
     await (update(transactions)..where((t) => t.categoryId.equals(id)))
         .write(const TransactionsCompanion(categoryId: Value(null)));
+    await (update(recurringTemplates)..where((r) => r.categoryId.equals(id)))
+        .write(const RecurringTemplatesCompanion(categoryId: Value(null)));
     await (delete(budgets)..where((b) => b.categoryId.equals(id))).go();
     await (delete(categories)..where((c) => c.id.equals(id))).go();
   }
 
   // ---- Account delete (cascade) ----------------------------------------
 
-  /// Permanently delete an account and every transaction into/out of it.
+  /// Permanently delete an account, every transaction into/out of it, and any
+  /// recurring templates that would log into it.
   Future<void> deleteAccountCascade(int id) async {
     await (delete(transactions)
           ..where((t) =>
               t.accountId.equals(id) | t.transferToAccountId.equals(id)))
+        .go();
+    await (delete(recurringTemplates)..where((r) => r.accountId.equals(id)))
         .go();
     await (delete(accounts)..where((a) => a.id.equals(id))).go();
   }
@@ -606,7 +612,10 @@ class AppDatabase extends _$AppDatabase {
       case Frequency.weekly:
         return d.add(const Duration(days: 7));
       case Frequency.monthly:
-        return DateTime(d.year, d.month + 1, d.day, d.hour, d.minute);
+        // Clamp to the target month's last day so Jan 31 -> Feb 28, not Mar 3.
+        final lastDay = DateTime(d.year, d.month + 2, 0).day;
+        final day = d.day > lastDay ? lastDay : d.day;
+        return DateTime(d.year, d.month + 1, day, d.hour, d.minute);
     }
   }
 

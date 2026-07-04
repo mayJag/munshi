@@ -63,8 +63,11 @@ class Allowance {
 
     if (mode == LeftoverMode.spread) {
       final remainingForToday = b - spentBeforeToday;
-      final todayAllowance =
-          (remainingForToday / daysLeftIncl).floor().clamp(0, remainingForToday);
+      // If the whole month's budget is already gone, today's allowance is 0
+      // (clamp with a negative upper bound would throw).
+      final todayAllowance = remainingForToday <= 0
+          ? 0
+          : (remainingForToday / daysLeftIncl).floor();
       return Allowance(
         mode: mode,
         todayAllowanceMinor: todayAllowance,

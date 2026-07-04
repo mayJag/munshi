@@ -65,13 +65,17 @@ class _RecurringEditorSheetState extends State<RecurringEditorSheet> {
   }
 
   Future<void> _load() async {
-    final a = await db.activeAccounts();
+    // Include archived accounts so an existing template stays editable.
+    final a = await db.activeAccountsAll();
     final c = await db.allCategories();
     if (!mounted) return;
+    final active = a.where((x) => !x.isArchived).toList();
     setState(() {
       _accounts = a;
       _categories = c;
-      _accountId ??= a.isNotEmpty ? a.first.id : null;
+      _accountId ??= active.isNotEmpty
+          ? active.first.id
+          : (a.isNotEmpty ? a.first.id : null);
       _loading = false;
     });
   }
