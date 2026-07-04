@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/app_database.dart';
 import '../../data/db.dart';
+import '../../services/alerts_service.dart';
 import '../../shared/icons/app_icons.dart';
 import '../../shared/money.dart';
 
@@ -112,12 +113,38 @@ class _TransactionEditorState extends State<TransactionEditor> {
         note: Value(_note.text.trim().isEmpty ? null : _note.text.trim()),
       ));
     }
+    if (_type == TxType.expense) {
+      await AlertsService.instance.checkAfterExpense(_categoryId);
+    }
     if (mounted) Navigator.of(context).pop();
   }
 
   void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
       );
+
+  Future<void> _confirmDelete() async {
+    final e = widget.existing;
+    if (e == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete transaction?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await db.deleteTx(e.id);
+    if (mounted) Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +153,12 @@ class _TransactionEditorState extends State<TransactionEditor> {
       appBar: AppBar(
         title: Text(editing ? 'Edit transaction' : 'New transaction'),
         actions: [
+          if (editing)
+            IconButton(
+              tooltip: 'Delete',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _confirmDelete,
+            ),
           TextButton(onPressed: _save, child: const Text('Save')),
         ],
       ),

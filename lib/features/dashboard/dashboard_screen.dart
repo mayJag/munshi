@@ -6,7 +6,7 @@ import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../services/settings_service.dart';
 import '../../shared/money.dart';
-import '../dev/reminder_spike_sheet.dart';
+import '../settings/settings_screen.dart';
 import '../transactions/transaction_editor.dart';
 import '../transactions/tx_tile.dart';
 import 'allowance.dart';
@@ -41,11 +41,12 @@ class DashboardScreen extends StatelessWidget {
                 ],
               ),
               IconButton(
-                tooltip: 'Reminder spike (dev)',
-                onPressed: () => ReminderSpikeSheet.show(context),
+                tooltip: 'Settings',
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const SettingsScreen())),
                 icon: CircleAvatar(
                   backgroundColor: MunshiTheme.surfaceHigh,
-                  child: const Icon(Icons.notifications_active_outlined,
+                  child: const Icon(Icons.settings_outlined,
                       color: Colors.white70),
                 ),
               ),

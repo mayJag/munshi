@@ -14,6 +14,12 @@ enum AccountType { cash, bank, card, wallet }
 /// excluded from category/spend aggregates.
 enum TxType { expense, income, transfer }
 
+/// How often a recurring template repeats.
+enum Frequency { daily, weekly, monthly }
+
+/// Reminder scheduling style.
+enum ReminderMode { dailyAt, hourly }
+
 @DataClassName('Account')
 class Accounts extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -52,6 +58,7 @@ class Transactions extends Table {
   IntColumn get categoryId => integer().nullable()();
   IntColumn get accountId => integer()();
   IntColumn get transferToAccountId => integer().nullable()();
+  IntColumn get recurringTemplateId => integer().nullable()();
   TextColumn get note => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().clientDefault(DateTime.now)();
@@ -71,6 +78,35 @@ class Budgets extends Table {
   List<Set<Column>> get uniqueKeys => [
         {monthKey, categoryId},
       ];
+}
+
+@DataClassName('RecurringTemplate')
+class RecurringTemplates extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 60)();
+  IntColumn get amountMinor => integer()();
+  TextColumn get type =>
+      textEnum<TxType>().withDefault(const Constant('expense'))();
+  IntColumn get categoryId => integer().nullable()();
+  IntColumn get accountId => integer()();
+  TextColumn get frequency =>
+      textEnum<Frequency>().withDefault(const Constant('monthly'))();
+  DateTimeColumn get nextDueDate => dateTime()();
+  TextColumn get note => text().nullable()();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+}
+
+@DataClassName('Reminder')
+class Reminders extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get message =>
+      text().withDefault(const Constant('Log your spending'))();
+  TextColumn get mode =>
+      textEnum<ReminderMode>().withDefault(const Constant('dailyAt'))();
+  IntColumn get hour => integer().withDefault(const Constant(21))();
+  IntColumn get minute => integer().withDefault(const Constant(0))();
+  IntColumn get intervalHours => integer().withDefault(const Constant(3))();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
 }
 
 /// A transaction joined with its (optional) category and account, for lists.
@@ -129,19 +165,34 @@ class SpendSummary {
   final int spentTodayMinor;
 }
 
-@DriftDatabase(tables: [Accounts, Categories, Transactions, Budgets])
+@DriftDatabase(tables: [
+  Accounts,
+  Categories,
+  Transactions,
+  Budgets,
+  RecurringTemplates,
+  Reminders,
+])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
           await _seed();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.createTable(recurringTemplates);
+            await m.createTable(reminders);
+            await m.addColumn(
+                transactions, transactions.recurringTemplateId);
+          }
         },
       );
 
@@ -489,6 +540,108 @@ class AppDatabase extends _$AppDatabase {
       );
     }
   }
+
+  /// Remove every budget row for a month (reset).
+  Future<void> clearMonthBudgets(String monthKey) {
+    return (delete(budgets)..where((b) => b.monthKey.equals(monthKey))).go();
+  }
+
+  // ---- Categories (custom) ---------------------------------------------
+
+  Stream<List<Category>> watchAllCategories() {
+    return (select(categories)
+          ..orderBy([
+            (c) => OrderingTerm(expression: c.kind),
+            (c) => OrderingTerm(expression: c.sortOrder),
+          ]))
+        .watch();
+  }
+
+  Future<int> insertCategory(CategoriesCompanion c) =>
+      into(categories).insert(c);
+
+  Future<bool> updateCategoryRow(Category c) =>
+      update(categories).replace(c);
+
+  /// Delete a category; its transactions are kept but become uncategorized.
+  Future<void> deleteCategory(int id) async {
+    await (update(transactions)..where((t) => t.categoryId.equals(id)))
+        .write(const TransactionsCompanion(categoryId: Value(null)));
+    await (delete(budgets)..where((b) => b.categoryId.equals(id))).go();
+    await (delete(categories)..where((c) => c.id.equals(id))).go();
+  }
+
+  // ---- Account delete (cascade) ----------------------------------------
+
+  /// Permanently delete an account and every transaction into/out of it.
+  Future<void> deleteAccountCascade(int id) async {
+    await (delete(transactions)
+          ..where((t) =>
+              t.accountId.equals(id) | t.transferToAccountId.equals(id)))
+        .go();
+    await (delete(accounts)..where((a) => a.id.equals(id))).go();
+  }
+
+  // ---- Recurring templates ---------------------------------------------
+
+  Stream<List<RecurringTemplate>> watchRecurring() {
+    return (select(recurringTemplates)
+          ..orderBy([(r) => OrderingTerm(expression: r.nextDueDate)]))
+        .watch();
+  }
+
+  Future<int> insertRecurring(RecurringTemplatesCompanion r) =>
+      into(recurringTemplates).insert(r);
+
+  Future<bool> updateRecurring(RecurringTemplate r) =>
+      update(recurringTemplates).replace(r);
+
+  Future<void> deleteRecurring(int id) =>
+      (delete(recurringTemplates)..where((r) => r.id.equals(id))).go();
+
+  static DateTime advanceDue(DateTime d, Frequency f) {
+    switch (f) {
+      case Frequency.daily:
+        return d.add(const Duration(days: 1));
+      case Frequency.weekly:
+        return d.add(const Duration(days: 7));
+      case Frequency.monthly:
+        return DateTime(d.year, d.month + 1, d.day, d.hour, d.minute);
+    }
+  }
+
+  /// Log a recurring template as a real transaction now, then advance its due
+  /// date by one interval.
+  Future<void> logRecurringNow(RecurringTemplate t) async {
+    await insertTx(TransactionsCompanion.insert(
+      occurredAt: DateTime.now(),
+      amountMinor: t.amountMinor,
+      type: t.type,
+      accountId: t.accountId,
+      categoryId: Value(t.categoryId),
+      note: Value(t.note),
+      recurringTemplateId: Value(t.id),
+    ));
+    await updateRecurring(
+        t.copyWith(nextDueDate: advanceDue(t.nextDueDate, t.frequency)));
+  }
+
+  // ---- Reminders --------------------------------------------------------
+
+  Stream<List<Reminder>> watchReminders() =>
+      (select(reminders)..orderBy([(r) => OrderingTerm(expression: r.hour)]))
+          .watch();
+
+  Future<List<Reminder>> activeReminders() =>
+      (select(reminders)..where((r) => r.isActive.equals(true))).get();
+
+  Future<int> insertReminder(RemindersCompanion r) =>
+      into(reminders).insert(r);
+
+  Future<bool> updateReminder(Reminder r) => update(reminders).replace(r);
+
+  Future<void> deleteReminder(int id) =>
+      (delete(reminders)..where((r) => r.id.equals(id))).go();
 }
 
 LazyDatabase _openConnection() {

@@ -86,6 +86,33 @@ class _NetCard extends StatelessWidget {
   }
 }
 
+Future<void> _confirmDelete(BuildContext context, Account a) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: Text('Delete ${a.name}?'),
+      content: const Text(
+          'This permanently removes the account and all its transactions. '
+          'To just hide it, use Archive instead.'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete')),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  await db.deleteAccountCascade(a.id);
+  messenger.showSnackBar(SnackBar(
+    content: Text('Deleted ${a.name}'),
+    behavior: SnackBarBehavior.floating,
+  ));
+}
+
 class _AccountCard extends StatelessWidget {
   const _AccountCard({required this.balance});
   final AccountBalance balance;
@@ -116,11 +143,17 @@ class _AccountCard extends StatelessWidget {
                   if (context.mounted) {
                     AccountEditorSheet.show(context, existing: a);
                   }
+                } else if (v == 'delete') {
+                  await _confirmDelete(context, a);
                 }
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'edit', child: Text('Edit')),
                 PopupMenuItem(value: 'archive', child: Text('Archive')),
+                PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Delete',
+                        style: TextStyle(color: MunshiTheme.negative))),
               ],
             ),
           ],

@@ -7,6 +7,8 @@ import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../shared/icons/app_icons.dart';
 import '../../shared/money.dart';
+import '../../services/alerts_service.dart';
+import '../categories/category_editor_sheet.dart';
 
 /// The 2-tap quick-add centerpiece: amount keypad + category grid. Saves an
 /// expense to the selected account. Reachable via FAB and notification tap.
@@ -79,6 +81,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       accountId: _account!.id,
       categoryId: Value(category.id),
     ));
+    await AlertsService.instance.checkAfterExpense(category.id);
     if (!mounted) return;
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -199,6 +202,34 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 ),
               ),
             ),
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () async {
+              await CategoryEditorSheet.show(context,
+                  initialKind: TxType.expense);
+              await _load();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add, size: 18, color: Colors.white70),
+                  SizedBox(width: 8),
+                  Flexible(
+                    child: Text('New',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app/theme.dart';
 import 'features/quick_add/quick_add_sheet.dart';
 import 'features/shell/home_shell.dart';
+import 'data/db.dart';
 import 'services/notification_service.dart';
 import 'services/settings_service.dart';
 
@@ -12,6 +13,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SettingsService.instance.init();
   await NotificationService.instance.init();
+  // Restore scheduled reminders (survives app updates / fresh launches).
+  final reminders = await db.activeReminders();
+  await NotificationService.instance.rescheduleAll(reminders);
   runApp(const MunshiApp());
 }
 

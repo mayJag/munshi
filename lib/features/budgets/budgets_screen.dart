@@ -40,12 +40,75 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     );
   }
 
+  Future<void> _addBudget() async {
+    final cats = (await db.allCategories())
+        .where((c) => c.kind == TxType.expense)
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    if (!mounted) return;
+    final chosen = await showModalBottomSheet<Category>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Set a budget for…')),
+            for (final c in cats)
+              ListTile(
+                leading: Icon(iconFor(c.iconKey), color: Color(c.colorValue)),
+                title: Text(c.name),
+                onTap: () => Navigator.pop(context, c),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    await _editLine(BudgetLine(
+      category: chosen,
+      allocatedMinor: 0,
+      spentMinor: 0,
+      rolloverInMinor: 0,
+      rolloverEnabled: false,
+    ));
+  }
+
+  Future<void> _clearMonth() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Clear ${Money.monthLabel(_month)} budgets?'),
+        content: const Text('Removes all budget limits for this month.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Clear')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await db.clearMonthBudgets(_key);
+    messenger.showSnackBar(const SnackBar(
+      content: Text('Budgets cleared'),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Budgets'),
         actions: [
+          IconButton(
+            tooltip: 'Add budget',
+            icon: const Icon(Icons.add),
+            onPressed: _addBudget,
+          ),
           PopupMenuButton<BudgetTemplate>(
             icon: const Icon(Icons.auto_awesome_outlined),
             tooltip: 'Starter templates',
@@ -60,6 +123,15 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                     subtitle: Text(t.blurb),
                   ),
                 ),
+            ],
+          ),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'clear') _clearMonth();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'clear', child: Text("Clear this month's budgets")),
             ],
           ),
         ],

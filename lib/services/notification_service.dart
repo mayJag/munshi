@@ -4,6 +4,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../data/app_database.dart';
+
 /// Payload emitted by reminder notifications; tapping deep-links into quick-add.
 const String kQuickAddPayload = 'quick_add';
 
@@ -143,4 +145,69 @@ class NotificationService {
       _plugin.pendingNotificationRequests();
 
   Future<void> cancelAll() => _plugin.cancelAll();
+
+  // ---- Reminders (backed by the reminders table) ------------------------
+
+  static const int _reminderBase = 1000;
+  static const int _overspendBase = 5000;
+
+  int _reminderId(int id) => _reminderBase + id;
+
+  /// (Re)schedule one reminder. Cancels first; skips if inactive.
+  Future<void> scheduleReminder(Reminder r) async {
+    final nid = _reminderId(r.id);
+    await _plugin.cancel(id: nid);
+    if (!r.isActive) return;
+    if (r.mode == ReminderMode.dailyAt) {
+      await _plugin.zonedSchedule(
+        id: nid,
+        title: 'Munshi',
+        body: r.message,
+        scheduledDate: _nextInstanceOf(r.hour, r.minute),
+        notificationDetails: _details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: kQuickAddPayload,
+      );
+    } else {
+      await _plugin.periodicallyShowWithDuration(
+        id: nid,
+        title: 'Munshi',
+        body: r.message,
+        repeatDurationInterval: Duration(hours: r.intervalHours.clamp(1, 24)),
+        notificationDetails: _details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: kQuickAddPayload,
+      );
+    }
+  }
+
+  Future<void> cancelReminder(int reminderId) =>
+      _plugin.cancel(id: _reminderId(reminderId));
+
+  Future<void> rescheduleAll(List<Reminder> reminders) async {
+    for (final r in reminders) {
+      await scheduleReminder(r);
+    }
+  }
+
+  /// Fire a budget-overspend alert (80% / 100% crossings).
+  Future<void> showOverspendAlert(String category, int pct) {
+    return _plugin.show(
+      id: _overspendBase + category.hashCode % 1000,
+      title: pct >= 100 ? 'Over budget' : 'Budget warning',
+      body: pct >= 100
+          ? '$category is over budget'
+          : '$category is at $pct% of its budget',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'budget_alerts',
+          'Budget alerts',
+          channelDescription: 'Warnings when a category nears its limit',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+    );
+  }
 }
