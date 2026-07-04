@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../app/theme.dart';
+import '../dev/reminder_spike_sheet.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -27,9 +28,14 @@ class DashboardScreen extends StatelessWidget {
                           ?.copyWith(color: Colors.white54)),
                 ],
               ),
-              CircleAvatar(
-                backgroundColor: MunshiTheme.surfaceHigh,
-                child: const Icon(Icons.person_outline, color: Colors.white70),
+              IconButton(
+                tooltip: 'Reminder spike (dev)',
+                onPressed: () => ReminderSpikeSheet.show(context),
+                icon: CircleAvatar(
+                  backgroundColor: MunshiTheme.surfaceHigh,
+                  child: const Icon(Icons.notifications_active_outlined,
+                      color: Colors.white70),
+                ),
               ),
             ],
           ),
