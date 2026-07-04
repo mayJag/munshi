@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
+import '../../services/settings_service.dart';
 import '../../shared/icons/app_icons.dart';
 import '../../shared/money.dart';
+import '../dashboard/allowance.dart';
 import 'templates.dart';
 
 class BudgetsScreen extends StatefulWidget {
@@ -85,6 +87,10 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
                   children: [
                     _SummaryCard(lines: withBudget),
+                    const SizedBox(height: 12),
+                    _AllowancePanel(
+                        monthKey: _key,
+                        isCurrentMonth: _key == Money.monthKey(DateTime.now())),
                     const SizedBox(height: 16),
                     if (withBudget.isEmpty)
                       _EmptyHint(month: Money.monthLabel(_month)),
@@ -133,6 +139,124 @@ class _MonthNav extends StatelessWidget {
           IconButton(onPressed: onNext, icon: const Icon(Icons.chevron_right)),
         ],
       ),
+    );
+  }
+}
+
+/// Leftover-mode selector (spread vs save) + today's computed daily allowance.
+class _AllowancePanel extends StatelessWidget {
+  const _AllowancePanel(
+      {required this.monthKey, required this.isCurrentMonth});
+  final String monthKey;
+  final bool isCurrentMonth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Daily allowance',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text('How unspent money each day is handled',
+                style:
+                    theme.textTheme.bodySmall?.copyWith(color: Colors.white54)),
+            const SizedBox(height: 12),
+            ValueListenableBuilder<LeftoverMode>(
+              valueListenable: SettingsService.instance.leftoverMode,
+              builder: (context, mode, _) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SegmentedButton<LeftoverMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: LeftoverMode.spread,
+                          icon: Icon(Icons.calendar_view_week, size: 16),
+                          label: Text('Spread'),
+                        ),
+                        ButtonSegment(
+                          value: LeftoverMode.savings,
+                          icon: Icon(Icons.savings_outlined, size: 16),
+                          label: Text('Save it'),
+                        ),
+                      ],
+                      selected: {mode},
+                      onSelectionChanged: (s) => SettingsService.instance
+                          .setLeftoverMode(s.first),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      mode == LeftoverMode.spread
+                          ? 'Leftover spreads across the remaining days, '
+                              'raising future daily allowance.'
+                          : 'Each day gets a fixed slice; whatever you don\'t '
+                              'spend piles up as savings.',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: Colors.white38),
+                    ),
+                    if (isCurrentMonth) ...[
+                      const Divider(height: 24),
+                      StreamBuilder<SpendSummary>(
+                        stream: db.watchSpendSummary(monthKey),
+                        builder: (context, snap) {
+                          final s = snap.data;
+                          if (s == null || s.budgetAllocatedMinor <= 0) {
+                            return Text('Set budgets to get a daily number',
+                                style: theme.textTheme.bodySmall
+                                    ?.copyWith(color: Colors.white38));
+                          }
+                          final a = Allowance.compute(
+                              summary: s, mode: mode, now: DateTime.now());
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _pill(theme, 'Spendable today',
+                                  Money.format(a.canSpendTodayMinor),
+                                  danger: a.canSpendTodayMinor < 0),
+                              if (mode == LeftoverMode.savings)
+                                _pill(theme, 'Saved',
+                                    Money.format(a.savedMinor),
+                                    good: true)
+                              else
+                                _pill(theme, 'Per day',
+                                    Money.format(a.todayAllowanceMinor)),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pill(ThemeData theme, String label, String value,
+      {bool danger = false, bool good = false}) {
+    final color = danger
+        ? MunshiTheme.negative
+        : good
+            ? MunshiTheme.positive
+            : Colors.white;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white54)),
+        Text(value,
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800, color: color)),
+      ],
     );
   }
 }

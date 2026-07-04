@@ -4,11 +4,13 @@ import 'app/theme.dart';
 import 'features/quick_add/quick_add_sheet.dart';
 import 'features/shell/home_shell.dart';
 import 'services/notification_service.dart';
+import 'services/settings_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SettingsService.instance.init();
   await NotificationService.instance.init();
   runApp(const MunshiApp());
 }

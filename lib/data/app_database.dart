@@ -117,6 +117,18 @@ class BudgetLine {
   bool get isOver => spentMinor > availableMinor && availableMinor > 0;
 }
 
+/// Month spend snapshot used by the daily-allowance calculation.
+class SpendSummary {
+  SpendSummary({
+    required this.budgetAllocatedMinor,
+    required this.spentMonthMinor,
+    required this.spentTodayMinor,
+  });
+  final int budgetAllocatedMinor;
+  final int spentMonthMinor;
+  final int spentTodayMinor;
+}
+
 @DriftDatabase(tables: [Accounts, Categories, Transactions, Budgets])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -402,6 +414,54 @@ class AppDatabase extends _$AppDatabase {
         target: [budgets.monthKey, budgets.categoryId],
       ),
     );
+  }
+
+  /// Raw transactions within [from, to), newest first, optionally by [type].
+  Stream<List<TxRow>> watchTxInRange(DateTime from, DateTime to,
+      {TxType? type}) {
+    final q = select(transactions)
+      ..where((t) =>
+          t.occurredAt.isBiggerOrEqualValue(from) &
+          t.occurredAt.isSmallerThanValue(to));
+    if (type != null) {
+      q.where((t) => t.type.equalsValue(type));
+    }
+    q.orderBy([(t) => OrderingTerm.desc(t.occurredAt)]);
+    return q.watch();
+  }
+
+  /// Reactive month snapshot: total budget set, spend this month, spend today.
+  Stream<SpendSummary> watchSpendSummary(String monthKey) {
+    final start = monthStart(monthKey);
+    final end = _monthEnd(monthKey);
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
+
+    return select(budgets).watch().asyncExpand((budgetRows) {
+      return select(transactions).watch().map((txRows) {
+        final allocated = budgetRows
+            .where((b) => b.monthKey == monthKey)
+            .fold<int>(0, (s, b) => s + b.allocatedMinor);
+        var spentMonth = 0;
+        var spentToday = 0;
+        for (final t in txRows) {
+          if (t.type != TxType.expense) continue;
+          if (!t.occurredAt.isBefore(start) && t.occurredAt.isBefore(end)) {
+            spentMonth += t.amountMinor;
+          }
+          if (!t.occurredAt.isBefore(todayStart) &&
+              t.occurredAt.isBefore(todayEnd)) {
+            spentToday += t.amountMinor;
+          }
+        }
+        return SpendSummary(
+          budgetAllocatedMinor: allocated,
+          spentMonthMinor: spentMonth,
+          spentTodayMinor: spentToday,
+        );
+      });
+    });
   }
 
   Future<void> clearBudget(String monthKey, int categoryId) {
