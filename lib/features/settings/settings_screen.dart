@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../services/settings_service.dart';
 import '../categories/categories_screen.dart';
 import '../dev/reminder_spike_sheet.dart';
+import '../export/export_screen.dart';
+import '../import/csv_import_screen.dart';
 import '../recurring/recurring_screen.dart';
 import '../reminders/reminders_screen.dart';
 
@@ -41,6 +43,21 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _go(context, const RemindersScreen()),
           ),
+          const _SectionLabel('Data'),
+          ListTile(
+            leading: const Icon(Icons.ios_share),
+            title: const Text('Export to Excel'),
+            subtitle: const Text('3-sheet workbook with charts'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _go(context, const ExportScreen()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.upload_file),
+            title: const Text('Import CSV'),
+            subtitle: const Text('Bring in a bank statement'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _go(context, const CsvImportScreen()),
+          ),
           const _SectionLabel('Daily allowance'),
           ValueListenableBuilder<LeftoverMode>(
             valueListenable: SettingsService.instance.leftoverMode,
@@ -68,6 +85,8 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
+          const _SectionLabel('Security'),
+          const _PinTile(),
           const _SectionLabel('Developer'),
           ListTile(
             leading: const Icon(Icons.notifications_active_outlined),
@@ -83,6 +102,67 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PinTile extends StatefulWidget {
+  const _PinTile();
+
+  @override
+  State<_PinTile> createState() => _PinTileState();
+}
+
+class _PinTileState extends State<_PinTile> {
+  Future<String?> _promptPin(String title) {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          obscureText: true,
+          maxLength: 4,
+          decoration: const InputDecoration(
+              labelText: '4-digit PIN', counterText: ''),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final has = SettingsService.instance.hasPin;
+    return SwitchListTile(
+      secondary: const Icon(Icons.lock_outline),
+      title: const Text('App lock (PIN)'),
+      subtitle: Text(has ? 'On — asked on launch' : 'Off'),
+      value: has,
+      onChanged: (v) async {
+        if (v) {
+          final pin = await _promptPin('Set a 4-digit PIN');
+          if (pin != null && pin.length == 4) {
+            await SettingsService.instance.setPin(pin);
+          }
+        } else {
+          final pin = await _promptPin('Enter PIN to turn off');
+          if (pin == SettingsService.instance.pin) {
+            await SettingsService.instance.clearPin();
+          }
+        }
+        if (mounted) setState(() {});
+      },
     );
   }
 }

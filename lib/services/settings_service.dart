@@ -14,6 +14,7 @@ class SettingsService {
   static final SettingsService instance = SettingsService._();
 
   static const _kLeftoverMode = 'leftover_mode';
+  static const _kPin = 'app_pin';
 
   final ValueNotifier<LeftoverMode> leftoverMode =
       ValueNotifier(LeftoverMode.spread);
@@ -33,4 +34,12 @@ class SettingsService {
     leftoverMode.value = mode;
     await _prefs.setString(_kLeftoverMode, mode.name);
   }
+
+  // ---- App lock (PIN) ---------------------------------------------------
+
+  String? get pin => _prefs.getString(_kPin);
+  bool get hasPin => (pin?.isNotEmpty ?? false);
+
+  Future<void> setPin(String value) => _prefs.setString(_kPin, value);
+  Future<void> clearPin() => _prefs.remove(_kPin);
 }

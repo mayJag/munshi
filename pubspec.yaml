@@ -49,6 +49,7 @@ dependencies:
   intl: ^0.20.3
   syncfusion_flutter_xlsio: ^33.2.15
   syncfusion_officechart: ^33.2.15
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

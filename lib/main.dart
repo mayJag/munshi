@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app/theme.dart';
+import 'features/lock/lock_screen.dart';
 import 'features/quick_add/quick_add_sheet.dart';
 import 'features/shell/home_shell.dart';
 import 'data/db.dart';
@@ -27,14 +28,17 @@ class MunshiApp extends StatefulWidget {
 }
 
 class _MunshiAppState extends State<MunshiApp> {
+  late bool _locked;
+
   @override
   void initState() {
     super.initState();
+    _locked = SettingsService.instance.hasPin;
     // Deep-link: a reminder tap opens the quick-add sheet.
     NotificationService.instance.onQuickAddRequested = _openQuickAdd;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final payload = await NotificationService.instance.launchPayload();
-      if (payload == kQuickAddPayload) _openQuickAdd();
+      if (payload == kQuickAddPayload && !_locked) _openQuickAdd();
     });
   }
 
@@ -51,7 +55,9 @@ class _MunshiAppState extends State<MunshiApp> {
       navigatorKey: navigatorKey,
       theme: MunshiTheme.dark(),
       themeMode: ThemeMode.dark,
-      home: const HomeShell(),
+      home: _locked
+          ? LockScreen(onUnlock: () => setState(() => _locked = false))
+          : const HomeShell(),
     );
   }
 }
