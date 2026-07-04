@@ -144,3 +144,10 @@ Each phase ends with `flutter analyze` clean + a buildable APK, released to GitH
 1. **Approve this plan** (or mark up changes — stack, accent color, screen list, phase order, anything).
 2. **App name** — working name for the APK/launcher (e.g., "PaisaTrack", "Khaata", "SpendWise" — or yours).
 3. **GitHub**: new repo from the start, or local-only until Phase 1 is working?
+
+---
+
+## 10. Build Log / Deviations
+
+- **App name:** **Munshi** (package `com.jagga.munshi`). "Khaata" rejected — already used by 4+ live apps. Repo: https://github.com/mayJag/munshi (public).
+- **`file_picker` deferred to Phase 5.** Modern `file_picker` requires `win32 ^5.9.0` while `share_plus` (needed now for Excel share) requires `win32 ^6.0.1` — hard conflict. Pub fell back to an ancient, build-breaking `file_picker 3.0.4`, so it was removed. At Phase 5 (CSV import) resolve by either pinning `share_plus` to a `win32 ^5.x` line, using `dependency_overrides` (Android-only, win32 is desktop-only), or a different picker. `csv` (pure Dart) is already added.
