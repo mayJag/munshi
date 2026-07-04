@@ -24,8 +24,7 @@ void main() {
     expect(bytes[0], 0x50); // P
     expect(bytes[1], 0x4B); // K
 
-    final outDir = Directory('build')..createSync(recursive: true);
-    final file = File('${outDir.path}/munshi_spike_export.xlsx');
+    final file = File('${Directory.systemTemp.path}/munshi_spike_export.xlsx');
     file.writeAsBytesSync(bytes, flush: true);
     // ignore: avoid_print
     print('Wrote ${bytes.length} bytes -> ${file.absolute.path}');
