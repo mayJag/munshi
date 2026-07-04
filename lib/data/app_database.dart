@@ -57,6 +57,22 @@ class Transactions extends Table {
       dateTime().clientDefault(DateTime.now)();
 }
 
+@DataClassName('Budget')
+class Budgets extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  // "YYYY-MM", e.g. "2026-07".
+  TextColumn get monthKey => text().withLength(min: 7, max: 7)();
+  IntColumn get categoryId => integer()();
+  IntColumn get allocatedMinor => integer()();
+  BoolColumn get rolloverEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+        {monthKey, categoryId},
+      ];
+}
+
 /// A transaction joined with its (optional) category and account, for lists.
 class TxWithRefs {
   TxWithRefs({required this.tx, this.category, this.account, this.toAccount});
@@ -73,7 +89,35 @@ class AccountBalance {
   final int balanceMinor;
 }
 
-@DriftDatabase(tables: [Accounts, Categories, Transactions])
+/// One category's budget picture for a month: allocation, actual spend, and
+/// any rollover carried in from the previous month.
+class BudgetLine {
+  BudgetLine({
+    required this.category,
+    required this.allocatedMinor,
+    required this.spentMinor,
+    required this.rolloverInMinor,
+    required this.rolloverEnabled,
+    this.budgetId,
+  });
+
+  final Category category;
+  final int allocatedMinor;
+  final int spentMinor;
+  final int rolloverInMinor;
+  final bool rolloverEnabled;
+  final int? budgetId;
+
+  /// Total available = this month's allocation + carried-over surplus.
+  int get availableMinor => allocatedMinor + rolloverInMinor;
+  int get remainingMinor => availableMinor - spentMinor;
+  bool get hasBudget => allocatedMinor > 0;
+  double get progress =>
+      availableMinor <= 0 ? 0 : (spentMinor / availableMinor).clamp(0, 1);
+  bool get isOver => spentMinor > availableMinor && availableMinor > 0;
+}
+
+@DriftDatabase(tables: [Accounts, Categories, Transactions, Budgets])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
   AppDatabase.forTesting(super.e);
@@ -260,6 +304,130 @@ class AppDatabase extends _$AppDatabase {
           transactions.occurredAt.isBiggerOrEqualValue(from) &
           transactions.occurredAt.isSmallerThanValue(to));
     return q.watchSingle().map((r) => r.read(amount) ?? 0);
+  }
+
+  // ---- Budgets ----------------------------------------------------------
+
+  static DateTime monthStart(String key) {
+    final parts = key.split('-');
+    return DateTime(int.parse(parts[0]), int.parse(parts[1]), 1);
+  }
+
+  static DateTime _monthEnd(String key) {
+    final s = monthStart(key);
+    return DateTime(s.year, s.month + 1, 1);
+  }
+
+  static String prevMonthKey(String key) {
+    final s = monthStart(key);
+    final p = DateTime(s.year, s.month - 1, 1);
+    return '${p.year.toString().padLeft(4, '0')}-'
+        '${p.month.toString().padLeft(2, '0')}';
+  }
+
+  /// Reactive budget-vs-actual lines for [monthKey], one per expense category,
+  /// including rollover carried from the previous month when enabled.
+  Stream<List<BudgetLine>> watchBudgetLines(String monthKey) {
+    final prevKey = prevMonthKey(monthKey);
+    final thisStart = monthStart(monthKey);
+    final thisEnd = _monthEnd(monthKey);
+    final prevStart = monthStart(prevKey);
+    final prevEnd = thisStart;
+
+    return select(budgets).watch().asyncExpand((budgetRows) {
+      return select(transactions).watch().asyncMap((txRows) async {
+        final cats = await allCategories();
+        final expenseCats = cats
+            .where((c) => c.kind == TxType.expense)
+            .toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+        int spentIn(int catId, DateTime from, DateTime to) => txRows
+            .where((t) =>
+                t.type == TxType.expense &&
+                t.categoryId == catId &&
+                !t.occurredAt.isBefore(from) &&
+                t.occurredAt.isBefore(to))
+            .fold(0, (s, t) => s + t.amountMinor);
+
+        final thisB = {
+          for (final b in budgetRows.where((b) => b.monthKey == monthKey))
+            b.categoryId: b
+        };
+        final prevB = {
+          for (final b in budgetRows.where((b) => b.monthKey == prevKey))
+            b.categoryId: b
+        };
+
+        return expenseCats.map((c) {
+          final b = thisB[c.id];
+          final rollEnabled = b?.rolloverEnabled ?? false;
+          var rolloverIn = 0;
+          if (rollEnabled && prevB[c.id] != null) {
+            final leftover =
+                prevB[c.id]!.allocatedMinor - spentIn(c.id, prevStart, prevEnd);
+            if (leftover > 0) rolloverIn = leftover;
+          }
+          return BudgetLine(
+            category: c,
+            allocatedMinor: b?.allocatedMinor ?? 0,
+            spentMinor: spentIn(c.id, thisStart, thisEnd),
+            rolloverInMinor: rolloverIn,
+            rolloverEnabled: rollEnabled,
+            budgetId: b?.id,
+          );
+        }).toList();
+      });
+    });
+  }
+
+  Future<void> upsertBudget({
+    required String monthKey,
+    required int categoryId,
+    required int allocatedMinor,
+    required bool rolloverEnabled,
+  }) {
+    return into(budgets).insert(
+      BudgetsCompanion.insert(
+        monthKey: monthKey,
+        categoryId: categoryId,
+        allocatedMinor: allocatedMinor,
+        rolloverEnabled: Value(rolloverEnabled),
+      ),
+      onConflict: DoUpdate(
+        (_) => BudgetsCompanion(
+          allocatedMinor: Value(allocatedMinor),
+          rolloverEnabled: Value(rolloverEnabled),
+        ),
+        target: [budgets.monthKey, budgets.categoryId],
+      ),
+    );
+  }
+
+  Future<void> clearBudget(String monthKey, int categoryId) {
+    return (delete(budgets)
+          ..where((b) =>
+              b.monthKey.equals(monthKey) & b.categoryId.equals(categoryId)))
+        .go();
+  }
+
+  /// Apply a starter template: {categoryName: allocatedMinor} for [monthKey].
+  Future<void> applyTemplate(
+      String monthKey, Map<String, int> allocations) async {
+    final cats = await allCategories();
+    for (final entry in allocations.entries) {
+      final cat = cats.firstWhere(
+        (c) => c.kind == TxType.expense && c.name == entry.key,
+        orElse: () => cats.first,
+      );
+      if (cat.name != entry.key) continue;
+      await upsertBudget(
+        monthKey: monthKey,
+        categoryId: cat.id,
+        allocatedMinor: entry.value,
+        rolloverEnabled: false,
+      );
+    }
   }
 }
 

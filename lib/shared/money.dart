@@ -27,6 +27,15 @@ class Money {
   /// e.g. "5 Jul 2026".
   static String dateLabel(DateTime d) => _dateFmt.format(d);
 
+  static final DateFormat _monthFmt = DateFormat('MMMM yyyy');
+
+  /// "YYYY-MM" key for budgets, e.g. "2026-07".
+  static String monthKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}';
+
+  /// Human month label, e.g. "July 2026".
+  static String monthLabel(DateTime d) => _monthFmt.format(d);
+
   /// Day-group heading: "Today" / "Yesterday" / "5 Jul 2026".
   static String dayHeading(DateTime d) {
     final now = DateTime.now();
