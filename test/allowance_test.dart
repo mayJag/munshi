@@ -37,6 +37,31 @@ void main() {
       );
       expect(a.todayAllowanceMinor, 1428);
     });
+
+    test('spending today recalculates the coming days\' allowance', () {
+      // ₹10,000 budget, ₹430 spent today (nothing before). 21 days left incl.
+      // today -> 20 days after today. Recalculated = (₹10,000 − ₹430) / 20
+      // = ₹478.50 -> 47,850 paise.
+      final a = Allowance.compute(
+        summary: summary(1000000, 43000, 43000),
+        mode: LeftoverMode.spread,
+        now: now,
+      );
+      expect(a.daysAfterToday, 20);
+      expect(a.nextDaysAllowanceMinor, 47850);
+    });
+
+    test('going over today lowers the recalculated allowance', () {
+      // ₹300 budget, ₹250 spent today. Over today. Remaining ₹50 over the
+      // 20 days after today = ₹2.50 -> 250 paise.
+      final a = Allowance.compute(
+        summary: summary(30000, 25000, 25000),
+        mode: LeftoverMode.spread,
+        now: now,
+      );
+      expect(a.overspentToday, true);
+      expect(a.nextDaysAllowanceMinor, 250);
+    });
   });
 
   group('Allowance.savings', () {

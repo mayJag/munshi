@@ -162,6 +162,12 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         allowanceLine = '${Money.format(a.canSpendTodayMinor)} left today · '
             '${Money.format(a.todayAllowanceMinor)}/day for '
             '$days ${days == 1 ? "day" : "days"}';
+      } else if (a.daysAfterToday > 0) {
+        // Overspent today — tell them the recalculated daily figure going on.
+        allowanceLine =
+            '${Money.format(-a.canSpendTodayMinor)} over today · now '
+            '${Money.format(a.nextDaysAllowanceMinor)}/day for the next '
+            '${a.daysAfterToday} ${a.daysAfterToday == 1 ? "day" : "days"}';
       } else {
         allowanceLine =
             '${Money.format(-a.canSpendTodayMinor)} over today\'s allowance';

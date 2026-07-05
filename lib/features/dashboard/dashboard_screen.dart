@@ -269,6 +269,65 @@ class _BudgetCard extends StatelessWidget {
               ],
             ),
           ),
+
+          // ── Recalculated allowance (spread mode, after spending today) ──
+          if (mode == LeftoverMode.spread &&
+              allowance.daysAfterToday > 0 &&
+              summary.spentTodayMinor > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: (allowance.overspentToday
+                        ? MunshiTheme.negative
+                        : MunshiTheme.accent)
+                    .withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.autorenew,
+                      size: 16,
+                      color: allowance.overspentToday
+                          ? MunshiTheme.negative
+                          : MunshiTheme.accent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: Colors.white70),
+                        children: [
+                          TextSpan(
+                            text: allowance.overspentToday
+                                ? 'Over by '
+                                    '${Money.format(-allowance.canSpendTodayMinor)} '
+                                    'today — new allowance '
+                                : 'Recalculated to ',
+                          ),
+                          TextSpan(
+                            text:
+                                '${Money.format(allowance.nextDaysAllowanceMinor)}/day',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: allowance.overspentToday
+                                    ? MunshiTheme.negative
+                                    : MunshiTheme.accent),
+                          ),
+                          TextSpan(
+                            text: ' for the next ${allowance.daysAfterToday} '
+                                '${allowance.daysAfterToday == 1 ? "day" : "days"}',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
 
           // ── Days left caption ───────────────────────────────────────

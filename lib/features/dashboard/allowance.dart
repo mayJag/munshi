@@ -18,6 +18,7 @@ class Allowance {
     required this.savedMinor,
     required this.perDayBaselineMinor,
     required this.daysLeftInclusive,
+    required this.nextDaysAllowanceMinor,
     required this.hasBudget,
   });
 
@@ -36,7 +37,21 @@ class Allowance {
   final int perDayBaselineMinor;
 
   final int daysLeftInclusive;
+
+  /// Recalculated daily allowance for the days AFTER today — what today's
+  /// spending leaves you for the rest of the month. In spread mode this is
+  /// (budget − spent so far) ÷ days after today, so overspending today lowers
+  /// it and underspending raises it. In savings mode it's the fixed slice.
+  final int nextDaysAllowanceMinor;
+
   final bool hasBudget;
+
+  /// Days remaining after today (0 on the last day of the month).
+  int get daysAfterToday =>
+      daysLeftInclusive - 1 < 0 ? 0 : daysLeftInclusive - 1;
+
+  /// True once today's spending has eaten into today's allowance.
+  bool get overspentToday => canSpendTodayMinor < 0;
 
   static Allowance compute({
     required SpendSummary summary,
@@ -49,6 +64,8 @@ class Allowance {
     final daysLeftIncl = daysInMonth - day + 1;
     final spentBeforeToday = summary.spentMonthMinor - summary.spentTodayMinor;
 
+    final daysAfter = daysLeftIncl - 1;
+
     if (b <= 0) {
       return Allowance(
         mode: mode,
@@ -57,6 +74,7 @@ class Allowance {
         savedMinor: 0,
         perDayBaselineMinor: 0,
         daysLeftInclusive: daysLeftIncl,
+        nextDaysAllowanceMinor: 0,
         hasBudget: false,
       );
     }
@@ -68,6 +86,15 @@ class Allowance {
       final todayAllowance = remainingForToday <= 0
           ? 0
           : (remainingForToday / daysLeftIncl).floor();
+      // Recalculated allowance for the days after today: whatever's left of the
+      // budget once today's actual spending is counted, spread over the days
+      // that remain. Overspending today drops it; underspending lifts it.
+      final remainingAfterToday = b - summary.spentMonthMinor;
+      final nextDays = daysAfter <= 0
+          ? (remainingAfterToday <= 0 ? 0 : remainingAfterToday)
+          : (remainingAfterToday <= 0
+              ? 0
+              : (remainingAfterToday / daysAfter).floor());
       return Allowance(
         mode: mode,
         todayAllowanceMinor: todayAllowance,
@@ -75,6 +102,7 @@ class Allowance {
         savedMinor: 0,
         perDayBaselineMinor: (b / daysInMonth).floor(),
         daysLeftInclusive: daysLeftIncl,
+        nextDaysAllowanceMinor: nextDays,
         hasBudget: true,
       );
     }
@@ -91,6 +119,8 @@ class Allowance {
       savedMinor: saved,
       perDayBaselineMinor: baseline,
       daysLeftInclusive: daysLeftIncl,
+      // Savings mode keeps a fixed daily slice regardless of today's spend.
+      nextDaysAllowanceMinor: baseline,
       hasBudget: true,
     );
   }
