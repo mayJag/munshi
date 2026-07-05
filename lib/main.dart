@@ -18,16 +18,32 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SettingsService.instance.init();
-  await NotificationService.instance.init();
-  // Restore scheduled reminders (survives app updates / fresh launches).
-  final reminders = await db.activeReminders();
-  await NotificationService.instance.rescheduleAll(reminders);
-  // Daily auto-backup (no-op if the setting is off or one ran recently).
-  await BackupService.instance.maybeAutoBackup();
-  // Push fresh data to the home-screen widget (no-op off Android).
-  await WidgetService.instance.refresh();
+
+  // Settings must load before we read PIN state; guard so a prefs hiccup can't
+  // block the whole app.
+  try {
+    await SettingsService.instance.init();
+  } catch (_) {/* fall back to defaults */}
+
+  // Notifications are best-effort; never let their init stop the app opening.
+  try {
+    await NotificationService.instance.init();
+    final reminders = await db.activeReminders();
+    await NotificationService.instance.rescheduleAll(reminders);
+  } catch (_) {/* notifications unavailable */}
+
   runApp(const MunshiApp());
+
+  // Non-essential background work runs AFTER the first frame so nothing here
+  // can ever crash the launch. Each is independently guarded.
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    try {
+      await BackupService.instance.maybeAutoBackup();
+    } catch (_) {/* backup is optional */}
+    try {
+      await WidgetService.instance.refresh();
+    } catch (_) {/* widget is optional */}
+  });
 }
 
 class MunshiApp extends StatefulWidget {
