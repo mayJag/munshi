@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,13 +7,17 @@ import 'package:flutter/services.dart';
 import '../../app/theme.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
+import '../../services/alerts_service.dart';
+import '../../services/settings_service.dart';
 import '../../shared/icons/app_icons.dart';
 import '../../shared/money.dart';
-import '../../services/alerts_service.dart';
 import '../categories/category_editor_sheet.dart';
+import '../dashboard/allowance.dart';
 
-/// The 2-tap quick-add centerpiece: amount keypad + category grid. Saves an
-/// expense to the selected account. Reachable via FAB and notification tap.
+/// The quick-add centerpiece: amount keypad + title (with Cashew-style
+/// autocomplete that remembers each title's category) + category grid.
+/// Saves an expense to the selected account. Reachable via FAB and
+/// notification tap.
 class QuickAddSheet extends StatefulWidget {
   const QuickAddSheet({super.key});
 
@@ -30,16 +36,29 @@ class QuickAddSheet extends StatefulWidget {
 
 class _QuickAddSheetState extends State<QuickAddSheet> {
   String _amount = '0';
+  final _title = TextEditingController();
+  final _titleFocus = FocusNode();
   List<Account> _accounts = const [];
   List<Category> _categories = const [];
+  List<TitleSuggestion> _suggestions = const [];
   Account? _account;
   bool _loading = true;
   bool _saving = false;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _title.addListener(_onTitleChanged);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _title.dispose();
+    _titleFocus.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -51,6 +70,23 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       _categories = categories;
       _account = accounts.isNotEmpty ? accounts.first : null;
       _loading = false;
+    });
+  }
+
+  void _onTitleChanged() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 150), () async {
+      final text = _title.text.trim();
+      if (text.isEmpty) {
+        if (mounted) setState(() => _suggestions = const []);
+        return;
+      }
+      final matches = await db.titleSuggestions(text, limit: 6);
+      if (!mounted) return;
+      // Hide the suggestion if it's an exact match of what's typed already.
+      setState(() => _suggestions = matches
+          .where((s) => s.title.toLowerCase() != text.toLowerCase())
+          .toList());
     });
   }
 
@@ -69,6 +105,23 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     });
   }
 
+  /// Tapping a suggestion: fill the title; if it has a remembered category
+  /// and an amount is entered, save straight away (3-tap log).
+  Future<void> _useSuggestion(TitleSuggestion s) async {
+    _title.text = s.title;
+    _title.selection = TextSelection.collapsed(offset: s.title.length);
+    setState(() => _suggestions = const []);
+    if (s.categoryId == null || Money.toMinor(_amount) <= 0) return;
+    Category? cat;
+    for (final c in _categories) {
+      if (c.id == s.categoryId) {
+        cat = c;
+        break;
+      }
+    }
+    if (cat != null) await _save(cat);
+  }
+
   Future<void> _save(Category category) async {
     final minor = Money.toMinor(_amount);
     if (minor <= 0 || _account == null || _saving) return;
@@ -78,19 +131,61 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     // deactivated context.
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    final title = _title.text.trim();
     await db.insertTx(TransactionsCompanion.insert(
       occurredAt: DateTime.now(),
       amountMinor: minor,
       type: TxType.expense,
       accountId: _account!.id,
       categoryId: Value(category.id),
+      note: Value(title.isEmpty ? null : title),
     ));
     await AlertsService.instance.checkAfterExpense(category.id);
+
+    // Recompute the allowance AFTER this expense so the toast tells the user
+    // where they now stand ("you can now spend X/day for N days").
+    final label = title.isEmpty ? category.name : '$title · ${category.name}';
+    final saved = 'Saved ${Money.format(minor)} · $label';
+    String allowanceLine = '';
+    final now = DateTime.now();
+    final summary = await db.watchSpendSummary(Money.monthKey(now)).first;
+    if (summary.budgetAllocatedMinor > 0) {
+      final a = Allowance.compute(
+        summary: summary,
+        mode: SettingsService.instance.leftoverMode.value,
+        now: now,
+      );
+      final days = a.daysLeftInclusive;
+      if (a.canSpendTodayMinor >= 0) {
+        allowanceLine = '${Money.format(a.canSpendTodayMinor)} left today · '
+            '${Money.format(a.todayAllowanceMinor)}/day for '
+            '$days ${days == 1 ? "day" : "days"}';
+      } else {
+        allowanceLine =
+            '${Money.format(-a.canSpendTodayMinor)} over today\'s allowance';
+      }
+    }
+
     navigator.pop();
     messenger.showSnackBar(
       SnackBar(
-        content: Text('Saved ${Money.format(minor)} · ${category.name}'),
+        duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
+        content: allowanceLine.isEmpty
+            ? Text(saved)
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(saved),
+                  const SizedBox(height: 2),
+                  Text(allowanceLine,
+                      style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: MunshiTheme.accent)),
+                ],
+              ),
       ),
     );
   }
@@ -131,12 +226,93 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 Text('₹$_amount',
                     style: theme.textTheme.displaySmall
                         ?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                _titleField(theme),
+                if (_suggestions.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _suggestionChips(),
+                ],
+                const SizedBox(height: 12),
                 _categoryGrid(),
                 const SizedBox(height: 12),
                 _Keypad(onTap: _tap),
               ],
             ),
+    );
+  }
+
+  Widget _titleField(ThemeData theme) {
+    return TextField(
+      controller: _title,
+      focusNode: _titleFocus,
+      textCapitalization: TextCapitalization.sentences,
+      style: theme.textTheme.bodyMedium,
+      decoration: InputDecoration(
+        hintText: 'What\'s this for? (Swiggy, groceries…)',
+        hintStyle:
+            theme.textTheme.bodyMedium?.copyWith(color: Colors.white30),
+        prefixIcon:
+            const Icon(Icons.edit_outlined, size: 18, color: Colors.white38),
+        isDense: true,
+        filled: true,
+        fillColor: MunshiTheme.surfaceHigh,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        suffixIcon: _title.text.isEmpty
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.clear, size: 16, color: Colors.white38),
+                onPressed: () {
+                  _title.clear();
+                  setState(() => _suggestions = const []);
+                },
+              ),
+      ),
+    );
+  }
+
+  Widget _suggestionChips() {
+    Category? catFor(int? id) {
+      if (id == null) return null;
+      for (final c in _categories) {
+        if (c.id == id) return c;
+      }
+      return null;
+    }
+
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          for (final s in _suggestions)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ActionChip(
+                onPressed: () => _useSuggestion(s),
+                avatar: catFor(s.categoryId) != null
+                    ? Icon(iconFor(catFor(s.categoryId)!.iconKey),
+                        size: 15, color: Color(catFor(s.categoryId)!.colorValue))
+                    : const Icon(Icons.history,
+                        size: 15, color: Colors.white38),
+                label: Text(s.title),
+                labelStyle: const TextStyle(fontSize: 12.5),
+                backgroundColor: MunshiTheme.surfaceHigh,
+                side: BorderSide(
+                    color: catFor(s.categoryId) != null
+                        ? Color(catFor(s.categoryId)!.colorValue)
+                            .withValues(alpha: 0.4)
+                        : Colors.white12),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+        ],
+      ),
     );
   }
 

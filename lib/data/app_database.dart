@@ -164,6 +164,13 @@ class BudgetLine {
   bool get isOver => spentMinor > availableMinor && availableMinor > 0;
 }
 
+/// A past transaction title with the category it was last saved under.
+class TitleSuggestion {
+  TitleSuggestion({required this.title, this.categoryId});
+  final String title;
+  final int? categoryId;
+}
+
 /// Month spend snapshot used by the daily-allowance calculation.
 class SpendSummary {
   SpendSummary({
@@ -382,6 +389,30 @@ class AppDatabase extends _$AppDatabase {
           transactions.occurredAt.isBiggerOrEqualValue(from) &
           transactions.occurredAt.isSmallerThanValue(to));
     return q.watchSingle().map((r) => r.read(amount) ?? 0);
+  }
+
+  // ---- Title suggestions --------------------------------------------------
+
+  /// Past transaction titles matching [prefix], newest first, with the
+  /// category each was last saved under (Cashew-style title -> category
+  /// memory). Empty prefix returns the most recent distinct titles.
+  Future<List<TitleSuggestion>> titleSuggestions(String prefix,
+      {int limit = 8}) async {
+    final q = select(transactions)
+      ..where((t) => t.note.isNotNull() & t.note.like('$prefix%'))
+      ..orderBy([(t) => OrderingTerm.desc(t.occurredAt)]);
+    final rows = await q.get();
+    final seen = <String>{};
+    final out = <TitleSuggestion>[];
+    for (final t in rows) {
+      final title = t.note!.trim();
+      if (title.isEmpty) continue;
+      final key = title.toLowerCase();
+      if (!seen.add(key)) continue;
+      out.add(TitleSuggestion(title: title, categoryId: t.categoryId));
+      if (out.length >= limit) break;
+    }
+    return out;
   }
 
   // ---- Monthly total budget ---------------------------------------------
