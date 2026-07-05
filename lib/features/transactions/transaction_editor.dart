@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../app/theme.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../services/alerts_service.dart';
+import '../../services/receipt_service.dart';
+import '../../services/widget_service.dart';
 import '../../shared/icons/app_icons.dart';
 import '../../shared/money.dart';
 
@@ -31,6 +37,7 @@ class _TransactionEditorState extends State<TransactionEditor> {
   int? _accountId;
   int? _toAccountId;
   int? _categoryId;
+  String? _receiptPath;
 
   List<Account> _accounts = const [];
   List<Category> _categories = const [];
@@ -48,6 +55,7 @@ class _TransactionEditorState extends State<TransactionEditor> {
     _accountId = e?.accountId;
     _toAccountId = e?.transferToAccountId;
     _categoryId = e?.categoryId;
+    _receiptPath = e?.receiptPath;
     _load();
   }
 
@@ -105,6 +113,7 @@ class _TransactionEditorState extends State<TransactionEditor> {
         transferToAccountId:
             Value(_type == TxType.transfer ? _toAccountId : null),
         note: Value(_note.text.trim().isEmpty ? null : _note.text.trim()),
+        receiptPath: Value(_receiptPath),
       ));
     } else {
       await db.updateTx(e.copyWith(
@@ -116,11 +125,13 @@ class _TransactionEditorState extends State<TransactionEditor> {
         transferToAccountId:
             Value(_type == TxType.transfer ? _toAccountId : null),
         note: Value(_note.text.trim().isEmpty ? null : _note.text.trim()),
+        receiptPath: Value(_receiptPath),
       ));
     }
     if (_type == TxType.expense) {
       await AlertsService.instance.checkAfterExpense(_categoryId);
     }
+    await WidgetService.instance.refresh();
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -223,6 +234,8 @@ class _TransactionEditorState extends State<TransactionEditor> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+                const SizedBox(height: 16),
+                _receiptField(),
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: _save,
@@ -281,6 +294,84 @@ class _TransactionEditorState extends State<TransactionEditor> {
     );
   }
 
+  Future<void> _pickReceipt() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final path = await ReceiptService.instance.pick(source);
+    if (path != null && mounted) setState(() => _receiptPath = path);
+  }
+
+  void _viewReceipt() {
+    if (_receiptPath == null) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _ReceiptViewer(path: _receiptPath!),
+    ));
+  }
+
+  Widget _receiptField() {
+    if (_receiptPath == null) {
+      return OutlinedButton.icon(
+        onPressed: _pickReceipt,
+        icon: const Icon(Icons.attachment, size: 18),
+        label: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text('Attach receipt'),
+        ),
+      );
+    }
+    final file = File(_receiptPath!);
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: _viewReceipt,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: file.existsSync()
+                ? Image.file(file,
+                    width: 64, height: 64, fit: BoxFit.cover)
+                : Container(
+                    width: 64,
+                    height: 64,
+                    color: MunshiTheme.surfaceHigh,
+                    child: const Icon(Icons.broken_image_outlined,
+                        color: Colors.white38),
+                  ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text('Receipt attached',
+              style: Theme.of(context).textTheme.bodyMedium),
+        ),
+        TextButton.icon(
+          onPressed: () => setState(() => _receiptPath = null),
+          icon: const Icon(Icons.close, size: 16),
+          label: const Text('Remove'),
+          style: TextButton.styleFrom(foregroundColor: MunshiTheme.negative),
+        ),
+      ],
+    );
+  }
+
   Widget _dateField() {
     return InkWell(
       onTap: () async {
@@ -300,6 +391,30 @@ class _TransactionEditorState extends State<TransactionEditor> {
         decoration: const InputDecoration(
             labelText: 'Date', border: OutlineInputBorder()),
         child: Text(Money.dateLabel(_date)),
+      ),
+    );
+  }
+}
+
+/// Full-screen pinch-zoom receipt viewer.
+class _ReceiptViewer extends StatelessWidget {
+  const _ReceiptViewer({required this.path});
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: const Text('Receipt'),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 5,
+          child: Image.file(File(path)),
+        ),
       ),
     );
   }

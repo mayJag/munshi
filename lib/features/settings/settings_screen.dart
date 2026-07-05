@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../services/settings_service.dart';
+import '../../shared/money.dart';
+import '../backup/backup_screen.dart';
 import '../categories/categories_screen.dart';
 import '../dev/reminder_spike_sheet.dart';
 import '../export/export_screen.dart';
 import '../import/csv_import_screen.dart';
 import '../recurring/recurring_screen.dart';
 import '../reminders/reminders_screen.dart';
+import '../savings/savings_screen.dart';
+import '../subscriptions/subscriptions_screen.dart';
+import '../wrapped/wrapped_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -21,6 +26,29 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          const _SectionLabel('Money'),
+          ListTile(
+            leading: const Icon(Icons.savings_outlined),
+            title: const Text('Savings goals'),
+            subtitle: const Text('Save towards trips, gadgets, a fund'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _go(context, const SavingsScreen()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.subscriptions_outlined),
+            title: const Text('Subscriptions'),
+            subtitle: const Text('Recurring bills & monthly cost'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _go(context, const SubscriptionsScreen()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome_outlined),
+            title: const Text('This month, Wrapped'),
+            subtitle: const Text('Your spending recap'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => WrappedScreen.open(
+                context, Money.monthKey(DateTime.now())),
+          ),
           const _SectionLabel('Manage'),
           ListTile(
             leading: const Icon(Icons.category_outlined),
@@ -44,6 +72,13 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => _go(context, const RemindersScreen()),
           ),
           const _SectionLabel('Data'),
+          ListTile(
+            leading: const Icon(Icons.backup_outlined),
+            title: const Text('Backup & restore'),
+            subtitle: const Text('Auto-backup, share, restore'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _go(context, const BackupScreen()),
+          ),
           ListTile(
             leading: const Icon(Icons.ios_share),
             title: const Text('Export to Excel'),

@@ -9,6 +9,7 @@ import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../services/alerts_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/widget_service.dart';
 import '../../shared/icons/app_icons.dart';
 import '../../shared/money.dart';
 import '../categories/category_editor_sheet.dart';
@@ -141,6 +142,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       note: Value(title.isEmpty ? null : title),
     ));
     await AlertsService.instance.checkAfterExpense(category.id);
+    await WidgetService.instance.refresh();
 
     // Recompute the allowance AFTER this expense so the toast tells the user
     // where they now stand ("you can now spend X/day for N days").

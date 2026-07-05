@@ -15,6 +15,8 @@ class SettingsService {
 
   static const _kLeftoverMode = 'leftover_mode';
   static const _kPin = 'app_pin';
+  static const _kAutoBackup = 'auto_backup';
+  static const _kLastBackup = 'last_backup_at';
 
   final ValueNotifier<LeftoverMode> leftoverMode =
       ValueNotifier(LeftoverMode.spread);
@@ -29,6 +31,19 @@ class SettingsService {
       orElse: () => LeftoverMode.spread,
     );
   }
+
+  // ---- Auto-backup ------------------------------------------------------
+
+  bool get autoBackup => _prefs.getBool(_kAutoBackup) ?? false;
+  Future<void> setAutoBackup(bool v) => _prefs.setBool(_kAutoBackup, v);
+
+  DateTime? get lastBackupAt {
+    final ms = _prefs.getInt(_kLastBackup);
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  Future<void> setLastBackupAt(DateTime t) =>
+      _prefs.setInt(_kLastBackup, t.millisecondsSinceEpoch);
 
   Future<void> setLeftoverMode(LeftoverMode mode) async {
     leftoverMode.value = mode;

@@ -60,8 +60,25 @@ class Transactions extends Table {
   IntColumn get transferToAccountId => integer().nullable()();
   IntColumn get recurringTemplateId => integer().nullable()();
   TextColumn get note => text().nullable()();
+  // Absolute file path to an attached receipt image, if any.
+  TextColumn get receiptPath => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().clientDefault(DateTime.now)();
+}
+
+/// A savings goal the user is putting money aside for (holiday, phone, fund).
+@DataClassName('SavingsGoal')
+class SavingsGoals extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 60)();
+  IntColumn get targetMinor => integer()();
+  IntColumn get savedMinor => integer().withDefault(const Constant(0))();
+  TextColumn get iconKey => text().withDefault(const Constant('savings'))();
+  IntColumn get colorValue =>
+      integer().withDefault(const Constant(0xFF2DD4BF))();
+  DateTimeColumn get targetDate => dateTime().nullable()();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 }
 
 /// A single total-spend cap for an entire month, independent of category limits.
@@ -164,6 +181,47 @@ class BudgetLine {
   bool get isOver => spentMinor > availableMinor && availableMinor > 0;
 }
 
+/// Rich month summary powering the "Wrapped" report.
+class MonthWrapped {
+  MonthWrapped({
+    required this.monthKey,
+    required this.spentMinor,
+    required this.incomeMinor,
+    required this.prevSpentMinor,
+    required this.txnCount,
+    required this.dailyAverageMinor,
+    required this.topCategory,
+    required this.topCategoryMinor,
+    required this.biggestExpense,
+    required this.biggestExpenseCategory,
+    required this.busiestDayOfMonth,
+    required this.busiestDayMinor,
+    required this.topWeekday,
+  });
+
+  final String monthKey;
+  final int spentMinor;
+  final int incomeMinor;
+  final int prevSpentMinor;
+  final int txnCount;
+  final int dailyAverageMinor;
+  final Category? topCategory;
+  final int topCategoryMinor;
+  final TxRow? biggestExpense;
+  final Category? biggestExpenseCategory;
+  final int? busiestDayOfMonth;
+  final int busiestDayMinor;
+  final int? topWeekday; // 1=Mon .. 7=Sun
+
+  bool get isEmpty => txnCount == 0;
+
+  /// Percentage change vs last month (+ = spent more). null if no prior data.
+  double? get momChange {
+    if (prevSpentMinor == 0) return null;
+    return (spentMinor - prevSpentMinor) / prevSpentMinor * 100;
+  }
+}
+
 /// A past transaction title with the category it was last saved under.
 class TitleSuggestion {
   TitleSuggestion({required this.title, this.categoryId});
@@ -191,13 +249,14 @@ class SpendSummary {
   Budgets,
   RecurringTemplates,
   Reminders,
+  SavingsGoals,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -214,6 +273,10 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 3) {
             await m.createTable(monthlyBudgets);
+          }
+          if (from < 4) {
+            await m.addColumn(transactions, transactions.receiptPath);
+            await m.createTable(savingsGoals);
           }
         },
       );
@@ -727,6 +790,266 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteReminder(int id) =>
       (delete(reminders)..where((r) => r.id.equals(id))).go();
+
+  // ---- Savings goals ----------------------------------------------------
+
+  Stream<List<SavingsGoal>> watchSavingsGoals() {
+    return (select(savingsGoals)
+          ..where((g) => g.isArchived.equals(false))
+          ..orderBy([(g) => OrderingTerm(expression: g.sortOrder)]))
+        .watch();
+  }
+
+  Future<int> insertSavingsGoal(SavingsGoalsCompanion g) =>
+      into(savingsGoals).insert(g);
+
+  Future<bool> updateSavingsGoal(SavingsGoal g) =>
+      update(savingsGoals).replace(g);
+
+  Future<void> deleteSavingsGoal(int id) =>
+      (delete(savingsGoals)..where((g) => g.id.equals(id))).go();
+
+  /// Add (or, with a negative delta, withdraw) money from a goal, clamped to
+  /// a non-negative saved total.
+  Future<void> contributeToGoal(int id, int deltaMinor) async {
+    final g =
+        await (select(savingsGoals)..where((r) => r.id.equals(id))).getSingle();
+    final next = (g.savedMinor + deltaMinor).clamp(0, 1 << 62);
+    await (update(savingsGoals)..where((r) => r.id.equals(id)))
+        .write(SavingsGoalsCompanion(savedMinor: Value(next)));
+  }
+
+  // ---- Subscriptions (derived from recurring templates) -----------------
+
+  /// Active recurring expenses, treated as subscriptions/bills.
+  Stream<List<RecurringTemplate>> watchSubscriptions() {
+    return (select(recurringTemplates)
+          ..where((r) =>
+              r.isActive.equals(true) & r.type.equalsValue(TxType.expense))
+          ..orderBy([(r) => OrderingTerm(expression: r.nextDueDate)]))
+        .watch();
+  }
+
+  // ---- Search / filtered activity ---------------------------------------
+
+  /// Filtered, joined transactions for the Activity search. [query] matches
+  /// the note or the category name (case-insensitive). [types] limits by
+  /// direction (empty = all).
+  Stream<List<TxWithRefs>> watchTransactionsFiltered({
+    String query = '',
+    Set<TxType> types = const {},
+  }) {
+    final q = select(transactions).join([
+      leftOuterJoin(
+          categories, categories.id.equalsExp(transactions.categoryId)),
+      leftOuterJoin(accounts, accounts.id.equalsExp(transactions.accountId)),
+    ]);
+    if (types.isNotEmpty) {
+      q.where(transactions.type.isIn(types.map((t) => t.name).toList()));
+    }
+    q.orderBy([OrderingTerm.desc(transactions.occurredAt)]);
+
+    return q.watch().asyncMap((rows) async {
+      final acctById = {for (final a in await activeAccountsAll()) a.id: a};
+      final term = query.trim().toLowerCase();
+      final out = <TxWithRefs>[];
+      for (final r in rows) {
+        final tx = r.readTable(transactions);
+        final cat = r.readTableOrNull(categories);
+        if (term.isNotEmpty) {
+          final note = (tx.note ?? '').toLowerCase();
+          final catName = (cat?.name ?? '').toLowerCase();
+          if (!note.contains(term) && !catName.contains(term)) continue;
+        }
+        out.add(TxWithRefs(
+          tx: tx,
+          category: cat,
+          account: r.readTableOrNull(accounts),
+          toAccount: tx.transferToAccountId == null
+              ? null
+              : acctById[tx.transferToAccountId],
+        ));
+      }
+      return out;
+    });
+  }
+
+  // ---- Month wrapped (one-shot aggregate) -------------------------------
+
+  /// Compute a rich month summary for the "Wrapped" report.
+  Future<MonthWrapped> monthWrapped(String monthKey) async {
+    final start = monthStart(monthKey);
+    final end = _monthEnd(monthKey);
+    final prevKey = prevMonthKey(monthKey);
+    final prevStart = monthStart(prevKey);
+    final prevEnd = start;
+
+    final txns = await (select(transactions)
+          ..where((t) =>
+              t.occurredAt.isBiggerOrEqualValue(prevStart) &
+              t.occurredAt.isSmallerThanValue(end)))
+        .get();
+    final cats = {for (final c in await allCategories()) c.id: c};
+
+    var spent = 0, income = 0, prevSpent = 0, txnCount = 0;
+    TxRow? biggest;
+    final byCategory = <int, int>{};
+    final byDay = <int, int>{}; // day-of-month -> spend
+    final byWeekday = <int, int>{}; // 1..7 -> spend
+
+    for (final t in txns) {
+      final inThis =
+          !t.occurredAt.isBefore(start) && t.occurredAt.isBefore(end);
+      final inPrev = !t.occurredAt.isBefore(prevStart) &&
+          t.occurredAt.isBefore(prevEnd);
+      if (t.type == TxType.expense) {
+        if (inThis) {
+          spent += t.amountMinor;
+          txnCount++;
+          if (biggest == null || t.amountMinor > biggest.amountMinor) {
+            biggest = t;
+          }
+          if (t.categoryId != null) {
+            byCategory[t.categoryId!] =
+                (byCategory[t.categoryId!] ?? 0) + t.amountMinor;
+          }
+          byDay[t.occurredAt.day] =
+              (byDay[t.occurredAt.day] ?? 0) + t.amountMinor;
+          byWeekday[t.occurredAt.weekday] =
+              (byWeekday[t.occurredAt.weekday] ?? 0) + t.amountMinor;
+        } else if (inPrev) {
+          prevSpent += t.amountMinor;
+        }
+      } else if (t.type == TxType.income && inThis) {
+        income += t.amountMinor;
+      }
+    }
+
+    int? topCatId;
+    var topCatAmount = 0;
+    byCategory.forEach((k, v) {
+      if (v > topCatAmount) {
+        topCatAmount = v;
+        topCatId = k;
+      }
+    });
+
+    int? busiestDay;
+    var busiestAmount = 0;
+    byDay.forEach((k, v) {
+      if (v > busiestAmount) {
+        busiestAmount = v;
+        busiestDay = k;
+      }
+    });
+
+    int? topWeekday;
+    var topWeekdayAmount = 0;
+    byWeekday.forEach((k, v) {
+      if (v > topWeekdayAmount) {
+        topWeekdayAmount = v;
+        topWeekday = k;
+      }
+    });
+
+    final daysElapsed = _daysElapsed(start, end);
+
+    return MonthWrapped(
+      monthKey: monthKey,
+      spentMinor: spent,
+      incomeMinor: income,
+      prevSpentMinor: prevSpent,
+      txnCount: txnCount,
+      dailyAverageMinor: daysElapsed <= 0 ? 0 : spent ~/ daysElapsed,
+      topCategory: topCatId == null ? null : cats[topCatId],
+      topCategoryMinor: topCatAmount,
+      biggestExpense: biggest,
+      biggestExpenseCategory:
+          biggest?.categoryId == null ? null : cats[biggest!.categoryId],
+      busiestDayOfMonth: busiestDay,
+      busiestDayMinor: busiestAmount,
+      topWeekday: topWeekday,
+    );
+  }
+
+  static int _daysElapsed(DateTime start, DateTime end) {
+    final now = DateTime.now();
+    // If the month is in the past, count all its days; if current, days so far.
+    final effectiveEnd = now.isBefore(end) ? now : end;
+    return effectiveEnd.difference(start).inDays.clamp(1, 400);
+  }
+
+  // ---- Backup / restore (JSON snapshot of all financial data) -----------
+
+  Future<Map<String, dynamic>> exportSnapshot() async {
+    return {
+      'version': schemaVersion,
+      'accounts':
+          (await select(accounts).get()).map((e) => e.toJson()).toList(),
+      'categories':
+          (await select(categories).get()).map((e) => e.toJson()).toList(),
+      'transactions':
+          (await select(transactions).get()).map((e) => e.toJson()).toList(),
+      'monthlyBudgets':
+          (await select(monthlyBudgets).get()).map((e) => e.toJson()).toList(),
+      'budgets':
+          (await select(budgets).get()).map((e) => e.toJson()).toList(),
+      'recurringTemplates': (await select(recurringTemplates).get())
+          .map((e) => e.toJson())
+          .toList(),
+      'reminders':
+          (await select(reminders).get()).map((e) => e.toJson()).toList(),
+      'savingsGoals':
+          (await select(savingsGoals).get()).map((e) => e.toJson()).toList(),
+    };
+  }
+
+  /// Wipe everything and reload from a snapshot. Destructive — caller confirms.
+  Future<void> restoreSnapshot(Map<String, dynamic> snap) async {
+    List<Map<String, dynamic>> rows(String key) =>
+        ((snap[key] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+
+    await transaction(() async {
+      await delete(transactions).go();
+      await delete(budgets).go();
+      await delete(monthlyBudgets).go();
+      await delete(recurringTemplates).go();
+      await delete(reminders).go();
+      await delete(savingsGoals).go();
+      await delete(categories).go();
+      await delete(accounts).go();
+
+      for (final r in rows('accounts')) {
+        await into(accounts).insertOnConflictUpdate(Account.fromJson(r));
+      }
+      for (final r in rows('categories')) {
+        await into(categories).insertOnConflictUpdate(Category.fromJson(r));
+      }
+      for (final r in rows('transactions')) {
+        await into(transactions).insertOnConflictUpdate(TxRow.fromJson(r));
+      }
+      for (final r in rows('monthlyBudgets')) {
+        await into(monthlyBudgets)
+            .insertOnConflictUpdate(MonthlyBudget.fromJson(r));
+      }
+      for (final r in rows('budgets')) {
+        await into(budgets).insertOnConflictUpdate(Budget.fromJson(r));
+      }
+      for (final r in rows('recurringTemplates')) {
+        await into(recurringTemplates)
+            .insertOnConflictUpdate(RecurringTemplate.fromJson(r));
+      }
+      for (final r in rows('reminders')) {
+        await into(reminders).insertOnConflictUpdate(Reminder.fromJson(r));
+      }
+      for (final r in rows('savingsGoals')) {
+        await into(savingsGoals)
+            .insertOnConflictUpdate(SavingsGoal.fromJson(r));
+      }
+    });
+  }
 }
 
 LazyDatabase _openConnection() {

@@ -5,8 +5,10 @@ import 'features/lock/lock_screen.dart';
 import 'features/quick_add/quick_add_sheet.dart';
 import 'features/shell/home_shell.dart';
 import 'data/db.dart';
+import 'services/backup_service.dart';
 import 'services/notification_service.dart';
 import 'services/settings_service.dart';
+import 'services/widget_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -17,6 +19,10 @@ void main() async {
   // Restore scheduled reminders (survives app updates / fresh launches).
   final reminders = await db.activeReminders();
   await NotificationService.instance.rescheduleAll(reminders);
+  // Daily auto-backup (no-op if the setting is off or one ran recently).
+  await BackupService.instance.maybeAutoBackup();
+  // Push fresh data to the home-screen widget (no-op off Android).
+  await WidgetService.instance.refresh();
   runApp(const MunshiApp());
 }
 

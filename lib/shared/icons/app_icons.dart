@@ -22,6 +22,24 @@ const Map<String, IconData> kAppIcons = {
   'bank': Icons.account_balance,
   'card': Icons.credit_card,
   'wallet': Icons.wallet,
+  // Savings-goal icons.
+  'savings': Icons.savings,
+  'goal': Icons.flag,
+  'phone': Icons.smartphone,
+  'car': Icons.directions_car,
+  'house': Icons.house,
+  'vacation': Icons.beach_access,
+  'emergency': Icons.emergency,
+  'wedding': Icons.favorite_border,
+  'gadget': Icons.devices,
+  'gift': Icons.card_giftcard,
+  'star': Icons.star,
 };
+
+/// Icon keys offered when creating a savings goal.
+const List<String> kGoalIconKeys = [
+  'savings', 'goal', 'phone', 'car', 'house', 'vacation',
+  'emergency', 'wedding', 'gadget', 'gift', 'star', 'travel',
+];
 
 IconData iconFor(String key) => kAppIcons[key] ?? Icons.category;

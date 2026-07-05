@@ -46,12 +46,21 @@ class TxTile extends StatelessWidget {
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
-      trailing: Text(
-        '$sign${Money.format(tx.amountMinor)}',
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          color: isIncome ? MunshiTheme.positive : Colors.white,
-        ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (tx.receiptPath != null) ...[
+            const Icon(Icons.attachment, size: 14, color: Colors.white38),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            '$sign${Money.format(tx.amountMinor)}',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: isIncome ? MunshiTheme.positive : Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }
