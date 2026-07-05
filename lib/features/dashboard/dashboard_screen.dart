@@ -26,6 +26,7 @@ class DashboardScreen extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
         children: [
+          // ── Header ──────────────────────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -35,38 +36,32 @@ class DashboardScreen extends StatelessWidget {
                   Text('Munshi',
                       style: theme.textTheme.headlineSmall
                           ?.copyWith(fontWeight: FontWeight.w800)),
-                  Text('Your money, in order',
+                  Text(Money.monthLabel(now),
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: Colors.white54)),
                 ],
               ),
               IconButton(
                 tooltip: 'Settings',
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const SettingsScreen())),
-                icon: CircleAvatar(
+                onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                icon: const CircleAvatar(
                   backgroundColor: MunshiTheme.surfaceHigh,
-                  child: const Icon(Icons.settings_outlined,
-                      color: Colors.white70),
+                  child: Icon(Icons.settings_outlined, color: Colors.white70),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          _Hero(monthKey: monthKey),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
+
+          // ── Main budget hero ─────────────────────────────────────────────
+          _BudgetHero(monthKey: monthKey),
+          const SizedBox(height: 14),
+
+          // ── Net balance + Income row ─────────────────────────────────────
           Row(
             children: [
-              Expanded(
-                child: _MonthStat(
-                  label: 'Spent this month',
-                  type: TxType.expense,
-                  from: monthStart,
-                  to: monthEnd,
-                  icon: Icons.trending_down,
-                  color: MunshiTheme.negative,
-                ),
-              ),
+              Expanded(child: _NetBalanceCard()),
               const SizedBox(width: 12),
               Expanded(
                 child: _MonthStat(
@@ -80,9 +75,9 @@ class DashboardScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          _NetBalanceStat(),
           const SizedBox(height: 28),
+
+          // ── Recent activity ──────────────────────────────────────────────
           Text('Recent activity',
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w700)),
@@ -94,10 +89,12 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-/// Safe-to-spend-today hero, driven by budget + leftover mode. Falls back to
-/// net balance when no budget is set for the month.
-class _Hero extends StatelessWidget {
-  const _Hero({required this.monthKey});
+// ── Budget hero ─────────────────────────────────────────────────────────────
+
+/// The main home-screen card. When a budget exists it shows spent/remaining/
+/// daily breakdown. When there's no budget it falls back to net balance.
+class _BudgetHero extends StatelessWidget {
+  const _BudgetHero({required this.monthKey});
   final String monthKey;
 
   @override
@@ -109,25 +106,12 @@ class _Hero extends StatelessWidget {
           stream: db.watchSpendSummary(monthKey),
           builder: (context, snap) {
             final summary = snap.data;
-            if (summary == null) {
-              return const _HeroShell(
-                  label: 'Safe to spend today', value: '…', sub: '');
+            if (summary == null || summary.budgetAllocatedMinor <= 0) {
+              return const _NetBalanceHero();
             }
             final a = Allowance.compute(
                 summary: summary, mode: mode, now: DateTime.now());
-            if (!a.hasBudget) return const _NetBalanceHero();
-
-            final canSpend = a.canSpendTodayMinor;
-            final sub = mode == LeftoverMode.savings
-                ? 'Saved this month: ${Money.format(a.savedMinor)}'
-                : 'Spreads unspent across ${a.daysLeftInclusive} '
-                    '${a.daysLeftInclusive == 1 ? "day" : "days"} left';
-            return _HeroShell(
-              label: 'Safe to spend today',
-              value: Money.format(canSpend),
-              sub: '$sub · ${Money.format(a.todayAllowanceMinor)}/day',
-              danger: canSpend < 0,
-            );
+            return _BudgetCard(summary: summary, allowance: a, mode: mode);
           },
         );
       },
@@ -135,53 +119,167 @@ class _Hero extends StatelessWidget {
   }
 }
 
-class _HeroShell extends StatelessWidget {
-  const _HeroShell({
-    required this.label,
-    required this.value,
-    required this.sub,
-    this.danger = false,
-  });
-  final String label;
-  final String value;
-  final String sub;
-  final bool danger;
+class _BudgetCard extends StatelessWidget {
+  const _BudgetCard(
+      {required this.summary,
+      required this.allowance,
+      required this.mode});
+  final SpendSummary summary;
+  final Allowance allowance;
+  final LeftoverMode mode;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final budget = summary.budgetAllocatedMinor;
+    final spent = summary.spentMonthMinor;
+    final remaining = budget - spent;
+    final over = spent > budget;
+    final progress = (spent / budget).clamp(0.0, 1.0);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: danger
+          colors: over
               ? const [Color(0xFF7F1D1D), Color(0xFF3B0B0B)]
-              : const [MunshiTheme.accentDeep, Color(0xFF0B3B36)],
+              : const [MunshiTheme.accentDeep, Color(0xFF0A2E2B)],
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style:
-                  theme.textTheme.labelLarge?.copyWith(color: Colors.white70)),
+          // ── Top row: label + remaining pill ────────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Monthly budget',
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(color: Colors.white60)),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: over
+                      ? MunshiTheme.negative.withValues(alpha: 0.2)
+                      : Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  over
+                      ? 'Over by ${Money.format(-remaining)}'
+                      : '${Money.format(remaining)} left',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: over ? MunshiTheme.negative : Colors.white70,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
-          Text(value,
-                  style: theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w800, color: Colors.white))
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .scaleXY(begin: 0.95, end: 1),
-          if (sub.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(sub,
-                style:
-                    theme.textTheme.bodySmall?.copyWith(color: Colors.white70)),
-          ],
+
+          // ── Spent / Budget ──────────────────────────────────────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(Money.format(spent),
+                      style: theme.textTheme.displaySmall?.copyWith(
+                          fontWeight: FontWeight.w800, color: Colors.white))
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .scaleXY(begin: 0.95, end: 1),
+              const SizedBox(width: 6),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text('of ${Money.format(budget)}',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: Colors.white54)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // ── Progress bar ────────────────────────────────────────────
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: Colors.white.withValues(alpha: 0.1),
+              color: over ? MunshiTheme.negative : MunshiTheme.accent,
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Daily allowance row ─────────────────────────────────────
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.today_outlined,
+                    size: 16, color: Colors.white54),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Today\'s allowance',
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(color: Colors.white38)),
+                      Text(
+                        Money.format(allowance.todayAllowanceMinor),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: allowance.canSpendTodayMinor < 0
+                                ? MunshiTheme.negative
+                                : Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Can spend now',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: Colors.white38)),
+                    Text(
+                      allowance.canSpendTodayMinor < 0
+                          ? '−${Money.format(-allowance.canSpendTodayMinor)}'
+                          : Money.format(allowance.canSpendTodayMinor),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: allowance.canSpendTodayMinor < 0
+                              ? MunshiTheme.negative
+                              : MunshiTheme.accent),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // ── Days left caption ───────────────────────────────────────
+          Text(
+            '${allowance.daysLeftInclusive} '
+            '${allowance.daysLeftInclusive == 1 ? "day" : "days"} left '
+            'in ${Money.monthLabel(DateTime.now())} · '
+            '${mode == LeftoverMode.spread ? "Spread" : "Save it"} mode',
+            style:
+                theme.textTheme.bodySmall?.copyWith(color: Colors.white38),
+          ),
         ],
       ),
     );
@@ -193,38 +291,75 @@ class _NetBalanceHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return StreamBuilder<List<AccountBalance>>(
       stream: db.watchAccountBalances(),
       builder: (context, snap) {
-        final net =
-            (snap.data ?? const []).fold<int>(0, (s, b) => s + b.balanceMinor);
-        return _HeroShell(
-          label: 'Net balance',
-          value: Money.format(net),
-          sub: 'Set a budget to see your daily number',
+        final net = (snap.data ?? const [])
+            .fold<int>(0, (s, b) => s + b.balanceMinor);
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [MunshiTheme.accentDeep, Color(0xFF0A2E2B)],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Net balance',
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(color: Colors.white60)),
+              const SizedBox(height: 8),
+              Text(Money.format(net),
+                      style: theme.textTheme.displaySmall?.copyWith(
+                          fontWeight: FontWeight.w800, color: Colors.white))
+                  .animate()
+                  .fadeIn(duration: 400.ms),
+              const SizedBox(height: 4),
+              Text('Set a budget to see daily allowance',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: Colors.white38)),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-class _NetBalanceStat extends StatelessWidget {
+// ── Stat cards ───────────────────────────────────────────────────────────────
+
+class _NetBalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return StreamBuilder<List<AccountBalance>>(
       stream: db.watchAccountBalances(),
       builder: (context, snap) {
-        final net =
-            (snap.data ?? const []).fold<int>(0, (s, b) => s + b.balanceMinor);
+        final net = (snap.data ?? const [])
+            .fold<int>(0, (s, b) => s + b.balanceMinor);
         return Card(
-          child: ListTile(
-            leading: const Icon(Icons.account_balance_wallet_outlined,
-                color: MunshiTheme.accent),
-            title: const Text('Net balance'),
-            trailing: Text(Money.format(net),
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.account_balance_wallet_outlined,
+                    color: MunshiTheme.accent, size: 20),
+                const SizedBox(height: 12),
+                Text(Money.format(net),
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+                Text('Net balance',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: Colors.white54)),
+              ],
+            ),
           ),
         );
       },
@@ -277,6 +412,8 @@ class _MonthStat extends StatelessWidget {
     );
   }
 }
+
+// ── Recent transactions ──────────────────────────────────────────────────────
 
 class _RecentList extends StatelessWidget {
   @override
