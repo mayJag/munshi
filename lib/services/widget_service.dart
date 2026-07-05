@@ -31,18 +31,34 @@ class WidgetService {
         amount = Money.format(summary.spentMonthMinor);
         sub = 'spent · set a budget for a daily number';
       } else {
+        final mode = SettingsService.instance.leftoverMode.value;
         final a = Allowance.compute(
           summary: summary,
-          mode: SettingsService.instance.leftoverMode.value,
+          mode: mode,
           now: DateTime.now(),
         );
         label = a.canSpendTodayMinor < 0
             ? 'Over budget today'
             : 'Safe to spend today';
         amount = Money.format(a.canSpendTodayMinor);
-        final remaining =
-            summary.budgetAllocatedMinor - summary.spentMonthMinor;
-        sub = '${Money.format(remaining)} left this month';
+
+        // Mirror the dashboard: once something's spent today in spread mode,
+        // show the recalculated daily allowance for the rest of the month.
+        if (mode == LeftoverMode.spread &&
+            a.daysAfterToday > 0 &&
+            summary.spentTodayMinor > 0) {
+          final days = a.daysAfterToday;
+          final perDay = Money.format(a.nextDaysAllowanceMinor);
+          sub = a.overspentToday
+              ? 'Over by ${Money.format(-a.canSpendTodayMinor)} — '
+                  'now $perDay/day for $days ${days == 1 ? "day" : "days"}'
+              : '$perDay/day for the next $days '
+                  '${days == 1 ? "day" : "days"}';
+        } else {
+          final remaining =
+              summary.budgetAllocatedMinor - summary.spentMonthMinor;
+          sub = '${Money.format(remaining)} left this month';
+        }
       }
 
       await _channel.invokeMethod('updateWidget', {
