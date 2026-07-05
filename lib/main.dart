@@ -1,8 +1,4 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:home_widget/home_widget.dart';
 
 import 'app/theme.dart';
 import 'features/lock/lock_screen.dart';
@@ -53,41 +49,38 @@ class MunshiApp extends StatefulWidget {
   State<MunshiApp> createState() => _MunshiAppState();
 }
 
-class _MunshiAppState extends State<MunshiApp> {
+class _MunshiAppState extends State<MunshiApp> with WidgetsBindingObserver {
   late bool _locked;
-  StreamSubscription<Uri?>? _widgetClickSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _locked = SettingsService.instance.hasPin;
     // Deep-link: a reminder tap opens the quick-add sheet.
     NotificationService.instance.onQuickAddRequested = _openQuickAdd;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final payload = await NotificationService.instance.launchPayload();
       if (payload == kQuickAddPayload && !_locked) _openQuickAdd();
-      await _initWidgetLaunch();
+      await _checkWidgetLaunch();
     });
   }
 
   @override
   void dispose() {
-    _widgetClickSub?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  /// Handle taps on the "+ Add expense" home-screen widget — both the cold
-  /// launch and taps while the app is already running.
-  Future<void> _initWidgetLaunch() async {
-    if (!Platform.isAndroid) return;
-    try {
-      final launchUri = await HomeWidget.initiallyLaunchedFromHomeWidget();
-      _handleWidgetUri(launchUri);
-      _widgetClickSub = HomeWidget.widgetClicked.listen(_handleWidgetUri);
-    } catch (_) {/* plugin unavailable — ignore */}
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Warm taps on the "+ Add expense" widget resume the existing activity;
+    // the native side stashes the URI, we consume it here.
+    if (state == AppLifecycleState.resumed) _checkWidgetLaunch();
   }
 
-  void _handleWidgetUri(Uri? uri) {
+  Future<void> _checkWidgetLaunch() async {
+    final uri = await WidgetService.instance.consumeLaunchUri();
     if (uri?.host == 'quickadd' && !_locked) _openQuickAdd();
   }
 

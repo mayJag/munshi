@@ -1,21 +1,22 @@
 import 'dart:io';
 
-import 'package:home_widget/home_widget.dart';
+import 'package:flutter/services.dart';
 
 import '../data/db.dart';
 import '../features/dashboard/allowance.dart';
 import '../shared/money.dart';
 import 'settings_service.dart';
 
-/// Pushes "safe to spend today" data to the Android home-screen widget.
-///
-/// Safe to call anywhere — it no-ops off Android and never throws.
+/// Talks to the native Android home-screen widgets over a MethodChannel —
+/// no third-party plugin involved. Safe to call anywhere: no-ops off Android
+/// and never throws.
 class WidgetService {
   WidgetService._();
   static final WidgetService instance = WidgetService._();
 
-  static const _androidWidget = 'MunshiWidgetProvider';
+  static const _channel = MethodChannel('com.jagga.munshi/widget');
 
+  /// Recompute safe-to-spend and push it to the widget.
   Future<void> refresh() async {
     if (!Platform.isAndroid) return;
     try {
@@ -39,17 +40,29 @@ class WidgetService {
             ? 'Over budget today'
             : 'Safe to spend today';
         amount = Money.format(a.canSpendTodayMinor);
-        final remaining = summary.budgetAllocatedMinor - summary.spentMonthMinor;
+        final remaining =
+            summary.budgetAllocatedMinor - summary.spentMonthMinor;
         sub = '${Money.format(remaining)} left this month';
       }
 
-      await HomeWidget.saveWidgetData<String>('widget_label', label);
-      await HomeWidget.saveWidgetData<String>('spendable_today', amount);
-      await HomeWidget.saveWidgetData<String>('widget_sub', sub);
-      await HomeWidget.updateWidget(
-        androidName: _androidWidget,
-        qualifiedAndroidName: 'com.jagga.munshi.$_androidWidget',
-      );
-    } catch (_) {/* widget not added / plugin unavailable — ignore */}
+      await _channel.invokeMethod('updateWidget', {
+        'label': label,
+        'amount': amount,
+        'sub': sub,
+      });
+    } catch (_) {/* widget not present / channel unavailable — ignore */}
+  }
+
+  /// URI the app was opened with from a widget tap ("munshiwidget://quickadd"),
+  /// or null. The native side clears it after one read, so warm resumes can
+  /// poll this safely.
+  Future<Uri?> consumeLaunchUri() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final s = await _channel.invokeMethod<String>('consumeLaunchUri');
+      return s == null ? null : Uri.tryParse(s);
+    } catch (_) {
+      return null;
+    }
   }
 }

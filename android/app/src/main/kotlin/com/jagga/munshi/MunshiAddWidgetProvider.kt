@@ -1,32 +1,36 @@
 package com.jagga.munshi
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
 import android.content.Context
-import android.content.SharedPreferences
+import android.content.Intent
 import android.net.Uri
 import android.widget.RemoteViews
-import es.antonborri.home_widget.HomeWidgetLaunchIntent
-import es.antonborri.home_widget.HomeWidgetProvider
 
 /**
- * A compact "+ Add expense" home-screen widget. Tapping it launches the app
- * with a URI the Flutter side reads to open the quick-add sheet directly.
+ * Compact "+ Add expense" widget. Launches MainActivity with a
+ * munshiwidget://quickadd URI; the Flutter side reads it and opens quick-add.
+ * Pure AppWidgetProvider — no plugin dependency.
  */
-class MunshiAddWidgetProvider : HomeWidgetProvider() {
+class MunshiAddWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray,
-        widgetData: SharedPreferences
+        appWidgetIds: IntArray
     ) {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.munshi_add_widget).apply {
-                val pendingIntent = HomeWidgetLaunchIntent.getActivity(
-                    context,
-                    MainActivity::class.java,
-                    Uri.parse("munshiwidget://quickadd")
+                val launch = Intent(context, MainActivity::class.java).apply {
+                    action = Intent.ACTION_VIEW
+                    data = Uri.parse("munshiwidget://quickadd")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                val pending = PendingIntent.getActivity(
+                    context, 1, launch,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
-                setOnClickPendingIntent(R.id.add_widget_root, pendingIntent)
+                setOnClickPendingIntent(R.id.add_widget_root, pending)
             }
             appWidgetManager.updateAppWidget(widgetId, views)
         }
