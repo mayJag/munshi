@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="munshi_widget_description">Your safe-to-spend amount for today</string>
+    <string name="munshi_add_widget_description">Log an expense in one tap</string>
 </resources>

@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
 
 import 'app/theme.dart';
 import 'features/lock/lock_screen.dart';
@@ -35,6 +39,7 @@ class MunshiApp extends StatefulWidget {
 
 class _MunshiAppState extends State<MunshiApp> {
   late bool _locked;
+  StreamSubscription<Uri?>? _widgetClickSub;
 
   @override
   void initState() {
@@ -45,7 +50,29 @@ class _MunshiAppState extends State<MunshiApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final payload = await NotificationService.instance.launchPayload();
       if (payload == kQuickAddPayload && !_locked) _openQuickAdd();
+      await _initWidgetLaunch();
     });
+  }
+
+  @override
+  void dispose() {
+    _widgetClickSub?.cancel();
+    super.dispose();
+  }
+
+  /// Handle taps on the "+ Add expense" home-screen widget — both the cold
+  /// launch and taps while the app is already running.
+  Future<void> _initWidgetLaunch() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final launchUri = await HomeWidget.initiallyLaunchedFromHomeWidget();
+      _handleWidgetUri(launchUri);
+      _widgetClickSub = HomeWidget.widgetClicked.listen(_handleWidgetUri);
+    } catch (_) {/* plugin unavailable — ignore */}
+  }
+
+  void _handleWidgetUri(Uri? uri) {
+    if (uri?.host == 'quickadd' && !_locked) _openQuickAdd();
   }
 
   void _openQuickAdd() {
