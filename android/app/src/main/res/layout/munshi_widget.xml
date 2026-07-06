@@ -13,7 +13,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Safe to spend today"
-        android:textColor="#B3FFFFFF"
+        android:textColor="#B3241B08"
         android:textSize="12sp"
         android:fontFamily="sans-serif-medium" />
 
@@ -23,8 +23,8 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:text="—"
-        android:textColor="#FFFFFFFF"
-        android:textSize="26sp"
+        android:textColor="#241B08"
+        android:textSize="27sp"
         android:textStyle="bold" />
 
     <TextView
@@ -33,7 +33,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:text=""
-        android:textColor="#99FFFFFF"
+        android:textColor="#99241B08"
         android:textSize="11sp" />
 
 </LinearLayout>

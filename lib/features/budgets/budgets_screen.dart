@@ -521,7 +521,7 @@ class _MonthlyTotalCard extends StatelessWidget {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [MunshiTheme.accentDeep, Color(0xFF0B3B36)],
+            colors: MunshiTheme.heroGradient,
           ),
         ),
         child: Column(

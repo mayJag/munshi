@@ -77,7 +77,7 @@ class _NetCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [MunshiTheme.accentDeep, Color(0xFF0A2E2B)],
+          colors: MunshiTheme.heroGradient,
         ),
       ),
       child: Column(

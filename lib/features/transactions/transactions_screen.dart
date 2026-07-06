@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
+import '../../shared/confirm_dialogs.dart';
 import '../../shared/money.dart';
 import '../../shared/widgets/empty_state.dart';
 import 'transaction_editor.dart';
@@ -193,6 +194,12 @@ class _GroupedList extends StatelessWidget {
       widgets.add(Dismissible(
         key: ValueKey(item.tx.id),
         direction: DismissDirection.endToStart,
+        confirmDismiss: (_) => ConfirmDialogs.confirmDelete(
+          context,
+          title: 'Delete this ${Money.format(item.tx.amountMinor)} entry?',
+          subtitle:
+              '${item.category?.name ?? "Uncategorized"} · This can\'t be undone.',
+        ),
         background: Container(
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.only(right: 24),

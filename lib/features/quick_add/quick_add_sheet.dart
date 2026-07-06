@@ -10,6 +10,7 @@ import '../../data/db.dart';
 import '../../services/alerts_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/widget_service.dart';
+import '../../shared/confirm_dialogs.dart';
 import '../../shared/icons/app_icons.dart';
 import '../../shared/money.dart';
 import '../categories/category_editor_sheet.dart';
@@ -126,13 +127,22 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   Future<void> _save(Category category) async {
     final minor = Money.toMinor(_amount);
     if (minor <= 0 || _account == null || _saving) return;
+    final title = _title.text.trim();
+    // Review step before the expense commits.
+    final confirmed = await ConfirmDialogs.confirmLog(
+      context,
+      amountLabel: Money.format(minor),
+      detailLabel: title.isEmpty ? category.name : '$title · ${category.name}',
+      icon: iconFor(category.iconKey),
+      color: Color(category.colorValue),
+    );
+    if (!confirmed || !mounted) return;
     setState(() => _saving = true);
     HapticFeedback.mediumImpact();
     // Capture before any await/pop — looking these up afterwards can hit a
     // deactivated context.
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final title = _title.text.trim();
     await db.insertTx(TransactionsCompanion.insert(
       occurredAt: DateTime.now(),
       amountMinor: minor,

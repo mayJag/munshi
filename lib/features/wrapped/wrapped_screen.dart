@@ -76,7 +76,7 @@ class WrappedScreen extends StatelessWidget {
         value: Money.format(w.spentMinor),
         sub: '${w.txnCount} transaction${w.txnCount == 1 ? "" : "s"} · '
             '${Money.format(w.dailyAverageMinor)}/day average',
-        colors: const [MunshiTheme.accentDeep, Color(0xFF0A2E2B)],
+        colors: MunshiTheme.heroGradient,
       ),
     ];
 

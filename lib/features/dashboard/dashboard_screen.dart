@@ -147,7 +147,7 @@ class _BudgetCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: over
               ? const [Color(0xFF7F1D1D), Color(0xFF3B0B0B)]
-              : const [MunshiTheme.accentDeep, Color(0xFF0A2E2B)],
+              : MunshiTheme.heroGradient,
         ),
       ),
       child: Column(
@@ -364,7 +364,7 @@ class _NetBalanceHero extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [MunshiTheme.accentDeep, Color(0xFF0A2E2B)],
+              colors: MunshiTheme.heroGradient,
             ),
           ),
           child: Column(

@@ -12,8 +12,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="+"
-        android:textColor="#FFFFFFFF"
-        android:textSize="26sp"
+        android:textColor="#241B08"
+        android:textSize="24sp"
         android:textStyle="bold" />
 
     <TextView
@@ -21,7 +21,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:text="Add expense"
-        android:textColor="#FFFFFFFF"
+        android:textColor="#241B08"
         android:textSize="15sp"
         android:fontFamily="sans-serif-medium" />
 
