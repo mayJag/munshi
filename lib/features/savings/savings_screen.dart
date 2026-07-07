@@ -144,8 +144,8 @@ class _GoalCard extends StatelessWidget {
                         ),
                         PopupMenuButton<String>(
                           padding: EdgeInsets.zero,
-                          icon: const Icon(Icons.more_vert,
-                              size: 18, color: Colors.white38),
+                          icon: Icon(Icons.more_vert,
+                              size: 18, color: context.cFaint),
                           onSelected: (v) async {
                             if (v == 'edit') {
                               _GoalEditor.show(context, existing: goal);
@@ -168,7 +168,7 @@ class _GoalCard extends StatelessWidget {
                       '${Money.format(goal.savedMinor)} of '
                       '${Money.format(goal.targetMinor)}',
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.white54),
+                          ?.copyWith(color: context.cMuted),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -420,7 +420,7 @@ class _GoalEditorState extends State<_GoalEditor> {
               alignment: Alignment.centerLeft,
               child: Text('Icon',
                   style: Theme.of(context).textTheme.labelMedium
-                      ?.copyWith(color: Colors.white54)),
+                      ?.copyWith(color: context.cMuted)),
             ),
             const SizedBox(height: 8),
             SizedBox(
@@ -453,7 +453,7 @@ class _GoalEditorState extends State<_GoalEditor> {
               alignment: Alignment.centerLeft,
               child: Text('Colour',
                   style: Theme.of(context).textTheme.labelMedium
-                      ?.copyWith(color: Colors.white54)),
+                      ?.copyWith(color: context.cMuted)),
             ),
             const SizedBox(height: 8),
             Row(
@@ -471,7 +471,7 @@ class _GoalEditorState extends State<_GoalEditor> {
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: _color == c
-                                ? Colors.white
+                                ? context.cText
                                 : Colors.transparent,
                             width: 2.5,
                           ),

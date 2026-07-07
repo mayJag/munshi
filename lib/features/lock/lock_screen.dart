@@ -56,7 +56,7 @@ class _LockScreenState extends State<LockScreen> {
             const SizedBox(height: 8),
             Text(_error ? 'Wrong PIN, try again' : 'Munshi is locked',
                 style: TextStyle(
-                    color: _error ? MunshiTheme.negative : Colors.white54)),
+                    color: _error ? MunshiTheme.negative : context.cMuted)),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -70,7 +70,7 @@ class _LockScreenState extends State<LockScreen> {
                       shape: BoxShape.circle,
                       color: i < _entry.length
                           ? MunshiTheme.accent
-                          : Colors.white24,
+                          : context.cHair,
                     ),
                   ),
               ],

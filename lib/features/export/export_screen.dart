@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../app/theme.dart';
 import '../../data/db.dart';
 import '../../shared/money.dart';
 import 'excel_exporter.dart';
@@ -159,7 +160,7 @@ class _DateTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  style: TextStyle(color: context.cMuted, fontSize: 12)),
               const SizedBox(height: 4),
               Text(value,
                   style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -182,10 +183,10 @@ class _Bullet extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('•  ', style: TextStyle(color: Colors.white54)),
+          Text('•  ', style: TextStyle(color: context.cMuted)),
           Expanded(
               child: Text(text,
-                  style: const TextStyle(color: Colors.white70))),
+                  style: TextStyle(color: context.cText))),
         ],
       ),
     );

@@ -66,7 +66,7 @@ class SubscriptionsScreen extends StatelessWidget {
               const SizedBox(height: 16),
               Text('Upcoming renewals',
                   style: Theme.of(context).textTheme.labelLarge
-                      ?.copyWith(color: Colors.white38)),
+                      ?.copyWith(color: context.cFaint)),
               const SizedBox(height: 8),
               for (final r in subs) _SubCard(sub: r),
             ],
@@ -183,7 +183,7 @@ class _SubCard extends StatelessWidget {
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: overdue
                               ? MunshiTheme.negative
-                              : Colors.white54),
+                              : context.cMuted),
                     ),
                   ],
                 ),
@@ -197,7 +197,7 @@ class _SubCard extends StatelessWidget {
                   if (sub.frequency != Frequency.monthly)
                     Text('≈${Money.format(monthly)}/mo',
                         style: theme.textTheme.labelSmall
-                            ?.copyWith(color: Colors.white38)),
+                            ?.copyWith(color: context.cFaint)),
                 ],
               ),
             ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme.dart';
 import '../../services/settings_service.dart';
 import '../../shared/money.dart';
 import '../backup/backup_screen.dart';
@@ -214,7 +215,7 @@ class _SectionLabel extends StatelessWidget {
           style: Theme.of(context)
               .textTheme
               .labelMedium
-              ?.copyWith(color: Colors.white38, fontWeight: FontWeight.w700)),
+              ?.copyWith(color: context.cFaint, fontWeight: FontWeight.w700)),
     );
   }
 }

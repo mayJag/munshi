@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../shared/icons/app_icons.dart';
@@ -52,7 +53,7 @@ class CategoriesScreen extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .labelLarge
-                ?.copyWith(color: Colors.white54, fontWeight: FontWeight.w700)),
+                ?.copyWith(color: context.cMuted, fontWeight: FontWeight.w700)),
       );
 
   Widget _tile(BuildContext context, Category c) {

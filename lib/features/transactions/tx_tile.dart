@@ -19,7 +19,7 @@ class TxTile extends StatelessWidget {
     final isTransfer = tx.type == TxType.transfer;
 
     final Color color = isTransfer
-        ? Colors.white54
+        ? context.cMuted
         : isIncome
             ? MunshiTheme.positive
             : Color(item.category?.colorValue ?? 0xFF64748B);
@@ -50,14 +50,14 @@ class TxTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (tx.receiptPath != null) ...[
-            const Icon(Icons.attachment, size: 14, color: Colors.white38),
+            Icon(Icons.attachment, size: 14, color: context.cFaint),
             const SizedBox(width: 4),
           ],
           Text(
             '$sign${Money.format(tx.amountMinor)}',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: isIncome ? MunshiTheme.positive : Colors.white,
+              color: isIncome ? MunshiTheme.positive : context.cText,
             ),
           ),
         ],

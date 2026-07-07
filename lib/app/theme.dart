@@ -1,6 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// Adaptive on-surface colours — resolve to light-on-dark or dark-on-light
+/// automatically. Use these for text/icons that sit on Cards or the scaffold
+/// (NOT on the always-dark hero gradient cards, where literal white is right).
+extension MunshiColors on BuildContext {
+  Color get cText => Theme.of(this).colorScheme.onSurface;
+  Color get cMuted =>
+      Theme.of(this).colorScheme.onSurface.withValues(alpha: 0.62);
+  Color get cFaint =>
+      Theme.of(this).colorScheme.onSurface.withValues(alpha: 0.42);
+  Color get cHair =>
+      Theme.of(this).colorScheme.onSurface.withValues(alpha: 0.12);
+}
+
 /// Munshi's visual identity — "modern ledger": warm ink surfaces, a single
 /// confident gold accent (money-coded), Bricolage Grotesque display type
 /// over Space Grotesk body/numeric type. Supports light + dark.

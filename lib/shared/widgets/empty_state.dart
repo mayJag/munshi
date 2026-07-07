@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../app/theme.dart';
+
 /// A designed empty state used across every list/chart screen while the
 /// data layer is still being built out.
 class EmptyState extends StatelessWidget {
@@ -45,7 +47,7 @@ class EmptyState extends StatelessWidget {
             Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.white54,
+                color: context.cMuted,
                 height: 1.4,
               ),
               textAlign: TextAlign.center,

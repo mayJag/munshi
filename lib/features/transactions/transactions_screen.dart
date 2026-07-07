@@ -187,7 +187,7 @@ class _GroupedList extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .labelLarge
-                ?.copyWith(color: Colors.white54, fontWeight: FontWeight.w700),
+                ?.copyWith(color: context.cMuted, fontWeight: FontWeight.w700),
           ),
         ));
       }

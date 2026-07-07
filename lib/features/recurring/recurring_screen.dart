@@ -87,7 +87,7 @@ class _RecurringCard extends StatelessWidget {
                   style: TextStyle(
                       fontWeight: FontWeight.w800,
                       color:
-                          isIncome ? MunshiTheme.positive : Colors.white),
+                          isIncome ? MunshiTheme.positive : context.cText),
                 ),
                 PopupMenuButton<String>(
                   onSelected: (v) async {

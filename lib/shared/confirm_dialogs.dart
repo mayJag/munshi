@@ -12,7 +12,7 @@ class ConfirmDialogs {
         width: 40,
         height: 4,
         decoration: BoxDecoration(
-          color: Colors.white24,
+          color: Colors.grey.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(2),
         ),
       );

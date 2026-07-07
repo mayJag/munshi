@@ -53,8 +53,8 @@ class SpendCalendar extends StatelessWidget {
                   Expanded(
                     child: Center(
                       child: Text(w,
-                          style: const TextStyle(
-                              color: Colors.white38,
+                          style: TextStyle(
+                              color: context.cFaint,
                               fontSize: 11,
                               fontWeight: FontWeight.w700)),
                     ),

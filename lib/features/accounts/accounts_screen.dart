@@ -44,7 +44,7 @@ class AccountsScreen extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .labelLarge
-                      ?.copyWith(color: Colors.white38)),
+                      ?.copyWith(color: context.cFaint)),
               const SizedBox(height: 10),
               for (final b in balances) ...[
                 _AccountCard(balance: b),
@@ -177,7 +177,7 @@ class _AccountCard extends StatelessWidget {
                           Text(
                             _typeLabel(a.type),
                             style: theme.textTheme.bodySmall
-                                ?.copyWith(color: Colors.white38),
+                                ?.copyWith(color: context.cFaint),
                           ),
                         ],
                       ),
@@ -194,13 +194,13 @@ class _AccountCard extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                             color: isNegative
                                 ? MunshiTheme.negative
-                                : Colors.white,
+                                : context.cText,
                           ),
                         ),
                         Text(
                           isNegative ? 'Overdrawn' : 'Balance',
                           style: theme.textTheme.labelSmall
-                              ?.copyWith(color: Colors.white38),
+                              ?.copyWith(color: context.cFaint),
                         ),
                       ],
                     ),
@@ -209,8 +209,8 @@ class _AccountCard extends StatelessWidget {
                     // 3-dot menu — separated from balance so it can't overlap
                     PopupMenuButton<String>(
                       padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.more_vert,
-                          size: 20, color: Colors.white38),
+                      icon: Icon(Icons.more_vert,
+                          size: 20, color: context.cFaint),
                       onSelected: (v) async {
                         if (v == 'archive') {
                           await db.setAccountArchived(a.id, true);
@@ -298,14 +298,14 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.account_balance_wallet_outlined,
-              size: 56, color: Colors.white24),
+          Icon(Icons.account_balance_wallet_outlined,
+              size: 56, color: context.cHair),
           const SizedBox(height: 16),
           Text('No accounts yet',
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
-                  ?.copyWith(color: Colors.white54)),
+                  ?.copyWith(color: context.cMuted)),
           const SizedBox(height: 8),
           FilledButton.icon(
             onPressed: onAdd,

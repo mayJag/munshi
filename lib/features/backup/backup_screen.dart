@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 
+import '../../app/theme.dart';
 import '../../services/backup_service.dart';
 import '../../services/settings_service.dart';
 
@@ -132,17 +133,17 @@ class _BackupScreenState extends State<BackupScreen> {
             subtitle: const Text('Replace all data from a .json backup'),
             onTap: _busy ? null : _restore,
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 20, 16, 6),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
             child: Text('On-device backups',
                 style: TextStyle(
-                    color: Colors.white38, fontWeight: FontWeight.w700)),
+                    color: context.cFaint, fontWeight: FontWeight.w700)),
           ),
           if (_backups.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Text('No backups yet.',
-                  style: TextStyle(color: Colors.white38)),
+                  style: TextStyle(color: context.cFaint)),
             )
           else
             for (final f in _backups)

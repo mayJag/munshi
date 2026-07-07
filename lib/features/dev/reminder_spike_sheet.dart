@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme.dart';
 import '../../services/notification_service.dart';
 
 /// Phase-0 Spike 2 harness. A dev-only sheet to exercise every notification
@@ -36,8 +37,8 @@ class ReminderSpikeSheet extends StatelessWidget {
             Text('Reminder spike (dev)',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
-            const Text('Verify notifications on a real device.',
-                style: TextStyle(color: Colors.white54, fontSize: 13)),
+            Text('Verify notifications on a real device.',
+                style: TextStyle(color: context.cMuted, fontSize: 13)),
             const SizedBox(height: 16),
             Wrap(
               spacing: 8,

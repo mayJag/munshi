@@ -42,16 +42,16 @@ class WrappedScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.auto_awesome,
-                        size: 48, color: Colors.white24),
+                    Icon(Icons.auto_awesome,
+                        size: 48, color: context.cHair),
                     const SizedBox(height: 16),
                     Text('Nothing to wrap for ${Money.monthLabel(month)}',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: Colors.white54)),
+                            ?.copyWith(color: context.cMuted)),
                     const SizedBox(height: 8),
-                    const Text('Log some expenses and check back.',
-                        style: TextStyle(color: Colors.white38)),
+                    Text('Log some expenses and check back.',
+                        style: TextStyle(color: context.cFaint)),
                   ],
                 ),
               ),
@@ -244,7 +244,7 @@ class _StatCard extends StatelessWidget {
                 children: [
                   Text(label.toUpperCase(),
                       style: theme.textTheme.labelSmall?.copyWith(
-                          color: Colors.white38,
+                          color: context.cFaint,
                           letterSpacing: 0.5,
                           fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
@@ -254,7 +254,7 @@ class _StatCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(detail,
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.white54)),
+                          ?.copyWith(color: context.cMuted)),
                 ],
               ),
             ),

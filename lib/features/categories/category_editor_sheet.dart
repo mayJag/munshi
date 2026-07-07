@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
+import '../../app/theme.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../shared/icons/app_icons.dart';
@@ -109,7 +110,7 @@ class _CategoryEditorSheetState extends State<CategoryEditorSheet> {
               onSelectionChanged: (s) => setState(() => _kind = s.first),
             ),
             const SizedBox(height: 16),
-            const Text('Icon', style: TextStyle(color: Colors.white54)),
+            Text('Icon', style: TextStyle(color: context.cMuted)),
             const SizedBox(height: 8),
             SizedBox(
               height: 52,
@@ -125,16 +126,16 @@ class _CategoryEditorSheetState extends State<CategoryEditorSheet> {
                     child: CircleAvatar(
                       backgroundColor: sel
                           ? Color(_color)
-                          : Colors.white.withValues(alpha: 0.08),
+                          : context.cHair,
                       child: Icon(iconFor(key),
-                          color: sel ? Colors.white : Colors.white54, size: 20),
+                          color: sel ? Colors.white : context.cMuted, size: 20),
                     ),
                   );
                 },
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Color', style: TextStyle(color: Colors.white54)),
+            Text('Color', style: TextStyle(color: context.cMuted)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 10,
@@ -150,7 +151,7 @@ class _CategoryEditorSheetState extends State<CategoryEditorSheet> {
                         color: Color(c),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: _color == c ? Colors.white : Colors.transparent,
+                          color: _color == c ? context.cText : Colors.transparent,
                           width: 2,
                         ),
                       ),

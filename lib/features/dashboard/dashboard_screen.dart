@@ -38,7 +38,7 @@ class DashboardScreen extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.w800)),
                   Text(Money.monthLabel(now),
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.white54)),
+                          ?.copyWith(color: context.cMuted)),
                 ],
               ),
               IconButton(
@@ -416,7 +416,7 @@ class _NetBalanceCard extends StatelessWidget {
                         ?.copyWith(fontWeight: FontWeight.w700)),
                 Text('Net balance',
                     style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.white54)),
+                        ?.copyWith(color: context.cMuted)),
               ],
             ),
           ),
@@ -464,7 +464,7 @@ class _MonthStat extends StatelessWidget {
             ),
             Text(label,
                 style:
-                    theme.textTheme.bodySmall?.copyWith(color: Colors.white54)),
+                    theme.textTheme.bodySmall?.copyWith(color: context.cMuted)),
           ],
         ),
       ),
@@ -487,19 +487,19 @@ class _RecentList extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Column(
                 children: [
-                  const Icon(Icons.inbox_outlined,
-                      size: 40, color: Colors.white38),
+                  Icon(Icons.inbox_outlined,
+                      size: 40, color: context.cFaint),
                   const SizedBox(height: 12),
                   Text('No transactions yet',
                       style: Theme.of(context)
                           .textTheme
                           .bodyMedium
-                          ?.copyWith(color: Colors.white54)),
+                          ?.copyWith(color: context.cMuted)),
                   Text('Tap + to log your first one',
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: Colors.white38)),
+                          ?.copyWith(color: context.cFaint)),
                 ],
               ),
             ),

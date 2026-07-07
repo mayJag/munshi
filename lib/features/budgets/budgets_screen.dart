@@ -87,9 +87,9 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Set your total spending limit for this month.',
-              style: TextStyle(color: Colors.white54, fontSize: 13),
+              style: TextStyle(color: context.cMuted, fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -257,7 +257,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         if (withBudget.isNotEmpty) ...[
                           Text('Category breakdown',
                               style: Theme.of(context).textTheme.labelLarge
-                                  ?.copyWith(color: Colors.white38)),
+                                  ?.copyWith(color: context.cFaint)),
                           const SizedBox(height: 8),
                         ] else
                           _EmptyHint(month: Money.monthLabel(_month)),
@@ -267,7 +267,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                           const SizedBox(height: 12),
                           Text('Not budgeted',
                               style: Theme.of(context).textTheme.labelLarge
-                                  ?.copyWith(color: Colors.white38)),
+                                  ?.copyWith(color: context.cFaint)),
                           const SizedBox(height: 8),
                           for (final l in without)
                             _UnbudgetedTile(
@@ -335,7 +335,7 @@ class _AllowancePanel extends StatelessWidget {
             const SizedBox(height: 4),
             Text('How unspent money each day is handled',
                 style:
-                    theme.textTheme.bodySmall?.copyWith(color: Colors.white54)),
+                    theme.textTheme.bodySmall?.copyWith(color: context.cMuted)),
             const SizedBox(height: 12),
             ValueListenableBuilder<LeftoverMode>(
               valueListenable: SettingsService.instance.leftoverMode,
@@ -368,7 +368,7 @@ class _AllowancePanel extends StatelessWidget {
                           : 'Each day gets a fixed slice; whatever you don\'t '
                               'spend piles up as savings.',
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.white38),
+                          ?.copyWith(color: context.cFaint),
                     ),
                     if (isCurrentMonth) ...[
                       const Divider(height: 24),
@@ -379,7 +379,7 @@ class _AllowancePanel extends StatelessWidget {
                           if (s == null || s.budgetAllocatedMinor <= 0) {
                             return Text('Set budgets to get a daily number',
                                 style: theme.textTheme.bodySmall
-                                    ?.copyWith(color: Colors.white38));
+                                    ?.copyWith(color: context.cFaint));
                           }
                           final a = Allowance.compute(
                               summary: s, mode: mode, now: DateTime.now());
@@ -417,12 +417,13 @@ class _AllowancePanel extends StatelessWidget {
         ? MunshiTheme.negative
         : good
             ? MunshiTheme.positive
-            : Colors.white;
+            : theme.colorScheme.onSurface;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white54)),
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.62))),
         Text(value,
             style: theme.textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w800, color: color)),
@@ -493,7 +494,7 @@ class _MonthlyTotalCard extends StatelessWidget {
                               'add an overall cap too'
                           : 'Tap to set how much you want to spend this month',
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.white38),
+                          ?.copyWith(color: context.cFaint),
                     ),
                   ],
                 ),
@@ -612,7 +613,7 @@ class _BudgetCard extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: Icon(Icons.loop,
-                          size: 14, color: Colors.white38),
+                          size: 14, color: context.cFaint),
                     ),
                   Text(
                     line.isOver
@@ -621,7 +622,7 @@ class _BudgetCard extends StatelessWidget {
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: line.isOver
                           ? MunshiTheme.negative
-                          : Colors.white54,
+                          : context.cMuted,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -633,7 +634,7 @@ class _BudgetCard extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: line.progress.toDouble(),
                   minHeight: 8,
-                  backgroundColor: Colors.white12,
+                  backgroundColor: context.cHair,
                   color: barColor,
                 ),
               ),
@@ -643,7 +644,7 @@ class _BudgetCard extends StatelessWidget {
                 '${Money.format(line.availableMinor)}'
                 '${line.rolloverInMinor > 0 ? " (incl. ${Money.format(line.rolloverInMinor)} rollover)" : ""}',
                 style: theme.textTheme.bodySmall
-                    ?.copyWith(color: Colors.white38),
+                    ?.copyWith(color: context.cFaint),
               ),
             ],
           ),
@@ -692,11 +693,11 @@ class _EmptyHint extends StatelessWidget {
             Text('No budgets for $month',
                 style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Tap a category below to set a limit, or use ✨ up top to apply '
               'a starter template.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54, fontSize: 13),
+              style: TextStyle(color: context.cMuted, fontSize: 13),
             ),
           ],
         ),

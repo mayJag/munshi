@@ -95,8 +95,9 @@ class _MunshiAppState extends State<MunshiApp> with WidgetsBindingObserver {
       title: 'Munshi',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
-      theme: MunshiTheme.dark(),
-      themeMode: ThemeMode.dark,
+      theme: MunshiTheme.light(),
+      darkTheme: MunshiTheme.dark(),
+      themeMode: ThemeMode.system,
       home: _locked
           ? LockScreen(onUnlock: () => setState(() => _locked = false))
           : const HomeShell(),

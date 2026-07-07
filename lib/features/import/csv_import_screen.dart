@@ -4,6 +4,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../app/theme.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
 
@@ -137,7 +138,7 @@ class _CsvImportScreenState extends State<CsvImportScreen> {
           if (loaded) ...[
             const SizedBox(height: 8),
             Text('${_rows.length} rows read',
-                style: const TextStyle(color: Colors.white54)),
+                style: TextStyle(color: context.cMuted)),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('First row is a header'),

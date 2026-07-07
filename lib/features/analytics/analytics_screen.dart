@@ -180,13 +180,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 Text(Money.dateLabel(date),
                     style: Theme.of(context).textTheme.titleMedium),
                 Text('${Money.format(total)} spent',
-                    style: const TextStyle(color: Colors.white54)),
+                    style: TextStyle(color: context.cMuted)),
                 const SizedBox(height: 12),
                 if (items.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
                     child: Text('Nothing spent this day',
-                        style: TextStyle(color: Colors.white38)),
+                        style: TextStyle(color: context.cFaint)),
                   )
                 else
                   Flexible(
@@ -268,12 +268,12 @@ class _DonutCard extends StatelessWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
     final total = entries.fold<int>(0, (s, e) => s + e.value);
     if (total == 0) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Center(
               child: Text('No spending this month',
-                  style: TextStyle(color: Colors.white54))),
+                  style: TextStyle(color: context.cMuted))),
         ),
       );
     }
@@ -326,8 +326,8 @@ class _DonutCard extends StatelessWidget {
                         selected == null
                             ? 'Total'
                             : nameOf(selected!),
-                        style: const TextStyle(
-                            color: Colors.white54, fontSize: 12),
+                        style: TextStyle(
+                            color: context.cMuted, fontSize: 12),
                       ),
                       Text(
                         Money.format(
@@ -338,8 +338,8 @@ class _DonutCard extends StatelessWidget {
                       if (selected != null)
                         Text(
                           '${((byCategory[selected]! / total) * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(
-                              color: Colors.white38, fontSize: 11),
+                          style: TextStyle(
+                              color: context.cFaint, fontSize: 11),
                         ),
                     ],
                   ),
@@ -481,8 +481,8 @@ class _TrendCard extends StatelessWidget {
                       return Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(months[int.parse(parts[1]) - 1],
-                            style: const TextStyle(
-                                color: Colors.white38, fontSize: 11)),
+                            style: TextStyle(
+                                color: context.cFaint, fontSize: 11)),
                       );
                     },
                   ),
@@ -533,15 +533,15 @@ class _WeekdayCard extends StatelessWidget {
                     SizedBox(
                         width: 36,
                         child: Text(labels[i],
-                            style: const TextStyle(
-                                color: Colors.white54, fontSize: 12))),
+                            style: TextStyle(
+                                color: context.cMuted, fontSize: 12))),
                     Expanded(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
                           value: byWeekday[i] / maxV,
                           minHeight: 10,
-                          backgroundColor: Colors.white12,
+                          backgroundColor: context.cHair,
                           color: MunshiTheme.accent,
                         ),
                       ),
